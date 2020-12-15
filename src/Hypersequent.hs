@@ -1,4 +1,4 @@
-module ModalTheoremProver.Hypersequent
+module Hypersequent
     (Hypersequent (..)
     , Serialization (..)
     , serializeHypersequent
@@ -9,10 +9,10 @@ module ModalTheoremProver.Hypersequent
     , gatherAtomicFormulasInHypersequent
 ) where
 
-import ModalTheoremProver.Utilities
-import ModalTheoremProver.Formula
-import ModalTheoremProver.Canonicalizer
-import ModalTheoremProver.Sequent
+import Utilities
+import Formula
+import Canonicalizer
+import Sequent
 
 data Hypersequent = World Sequent [Hypersequent] deriving (Eq)
 

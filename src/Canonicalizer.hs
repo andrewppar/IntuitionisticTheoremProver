@@ -1,10 +1,10 @@
-module ModalTheoremProver.Canonicalizer
+module Canonicalizer
     (canonicalizeFormula
      , formulaSetsEqualP
      , formulaListsOverlapP) where
 import Debug.Trace
-import ModalTheoremProver.Utilities
-import ModalTheoremProver.Formula
+import Utilities
+import Formula
 
 
 {-| Canonicalizer |-}

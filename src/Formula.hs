@@ -1,4 +1,4 @@
-module ModalTheoremProver.Formula
+module Formula
     (Formula (..)
     , equiv
     , parseFormula
@@ -29,7 +29,7 @@ module ModalTheoremProver.Formula
     , sortFormulas
     ) where
 
-import ModalTheoremProver.Utilities
+import Utilities
 import Data.Maybe
 import Data.Char
 

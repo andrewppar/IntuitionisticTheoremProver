@@ -1,4 +1,4 @@
-module ModalTheoremProver.Utilities
+module Utilities
     (myTail
     , setIntersection
     , emptyListP

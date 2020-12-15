@@ -1,10 +1,12 @@
+module Lib where 
+
 import System.Environment
-import ModalTheoremProver.Prover
-import ModalTheoremProver.Formula
+import Prover
+import Formula
 import Data.Maybe
 
-main :: IO()
-main = 
+lib :: IO()
+lib = 
   do 
     args <- getArgs
     parseArgs ["-h"]

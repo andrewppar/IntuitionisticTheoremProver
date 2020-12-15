@@ -1,4 +1,4 @@
-module ModalTheoremProver.Model
+module Model
   (Model (..)
   , satisfies
   , hypersequentSatisfies
@@ -7,10 +7,10 @@ module ModalTheoremProver.Model
   , serializeModel
   )
     where
-import ModalTheoremProver.Formula
-import ModalTheoremProver.Sequent
-import ModalTheoremProver.Hypersequent
-import ModalTheoremProver.Utilities
+import Formula
+import Sequent
+import Hypersequent
+import Utilities
 import Data.Maybe
 import qualified Data.Map as Map
 import Debug.Trace

@@ -3,8 +3,8 @@ import ModalTheoremProver.Prover
 import ModalTheoremProver.Formula
 import Data.Maybe
 
-main :: IO()
-main = 
+lib :: IO()
+lib = 
   do 
     args <- getArgs
     parseArgs ["-h"]

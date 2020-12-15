@@ -1,17 +1,17 @@
-module ModalTheoremProver.Prover
+module Prover
   (ProofTreeStatus(..)
   , prove
   , showProof)
     where
 
 
-import ModalTheoremProver.Utilities
-import ModalTheoremProver.Formula
-import ModalTheoremProver.Canonicalizer
-import ModalTheoremProver.Sequent
-import ModalTheoremProver.Hypersequent
-import ModalTheoremProver.Model
-import ModalTheoremProver.IntuitionisticTranslator
+import Utilities
+import Formula
+import Canonicalizer
+import Sequent
+import Hypersequent
+import Model
+import IntuitionisticTranslator
 import Data.Maybe
 
 data ProofTree = Closed | Open | Node Hypersequent [ProofTree] deriving (Eq)

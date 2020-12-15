@@ -1,4 +1,4 @@
-module ModalTheoremProver.Sequent
+module Sequent
  (Sequent (..)
  , Polarity (..)
  , makePositiveSequent
@@ -24,9 +24,9 @@ module ModalTheoremProver.Sequent
  , gatherNecessities)
 where
 
-import ModalTheoremProver.Utilities
-import ModalTheoremProver.Formula
-import ModalTheoremProver.Canonicalizer
+import Utilities
+import Formula
+import Canonicalizer
 
 ----------------
 --- Sequents ---
