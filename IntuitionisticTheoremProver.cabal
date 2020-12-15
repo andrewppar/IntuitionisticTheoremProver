@@ -1,0 +1,62 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: a0ef83ce455884f7a76a2f8a2c4a9c4a19353e2a770cbb2435f8652fa2786d76
+
+name:           IntuitionisticTheoremProver
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/andrewppar/IntuitionisticTheoremProver#readme>
+homepage:       https://github.com/andrewppar/IntuitionisticTheoremProver#readme
+bug-reports:    https://github.com/andrewppar/IntuitionisticTheoremProver/issues
+author:         Andrew Parisi
+maintainer:     andrew.p.parisi@gmail.com
+copyright:      2020 Andrew Parisi
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/andrewppar/IntuitionisticTheoremProver
+
+library
+  exposed-modules:
+      Lib
+  other-modules:
+      Paths_IntuitionisticTheoremProver
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable IntuitionisticTheoremProver-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_IntuitionisticTheoremProver
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      IntuitionisticTheoremProver
+    , base >=4.7 && <5
+  default-language: Haskell2010
+
+test-suite IntuitionisticTheoremProver-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_IntuitionisticTheoremProver
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      IntuitionisticTheoremProver
+    , base >=4.7 && <5
+  default-language: Haskell2010
