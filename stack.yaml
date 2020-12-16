@@ -35,7 +35,15 @@ packages:
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
 #
-# extra-deps:
+extra-deps:
+- hcg-minus-0.15@sha256:cdc82064814d37ae139db8b06dea8fd7db4696332299362af90ff4f0c58fa0bc,953
+- hps-0.15@sha256:47ced9cebc0ef07d21dd2ff01bf68e1d97ad14b8c6206bcf709dc8616f0b2b83,1653
+# - ghc-8.6.5@sha256:3591225289bdf8cf8f62b10f2aebc9ea3e25a15294545a5312a419e0317784f9,13976
+# - ghc-boot-8.6.5@sha256:8b608d2f36aad99a37a7d1b70319d43195128de6485b15fa7d4638b2942ce2a2,1772
+# - ghc-boot-th-8.6.5@sha256:c120f0d15944e770e2b698f5139f0003a86f9e25e5d1a7c6631e442129232748,1075
+# - ghci-8.6.5@sha256:886e52e6ab43b0de39fd5d92d8d1a5d7fac04c0f145c62b39baae04476208bd9,2126
+# - template-haskell-2.14.0.0@sha256:e3747ae9e2aeec160196706dd470b5fc4175678ec4136bcec9124534f67d83bc,1724
+# - time-1.8.0.4@sha256:3f6eddf238b828eb4f82683acce1c3afe64784f0d20114239b738c123316c85c,5494
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
@@ -65,3 +73,6 @@ packages:
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+
+ghc-options:
+  "$everything": -haddock

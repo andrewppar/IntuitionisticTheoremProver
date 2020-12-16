@@ -15,6 +15,7 @@ import Data.Maybe
 import qualified Data.Map as Map
 import Debug.Trace
 import Control.Parallel.Strategies
+
 ---------------
 ---- Models ---
 ---------------
@@ -35,7 +36,7 @@ serializeModel HTML = serializeModelToHTML
 
 serializeModelToHTML :: Model -> IO()
 serializeModelToHTML model =
-  do template <- readFile $ "./utilities/model_html_template.html"
+  do template <- readFile "./utilities/model_html_template.html"
      let templateLines  = lines template
          withWorlds     = addWorldsToTemplateLines templateLines model
          withRelations  = addRelationsToTemplateLines withWorlds model
@@ -45,23 +46,23 @@ serializeModelToHTML model =
 addWorldsToTemplateLines :: [String]  -> Model -> [String]
 addWorldsToTemplateLines [] _ = []
 addWorldsToTemplateLines (line:lines) model =
-  if (filter (\x -> x /= ' ') line) == "NODES"
-     then (generateWorldHTMLLines model) ++ lines
-     else (line:(addWorldsToTemplateLines lines model))
+  if filter (/= ' ') line == "NODES"
+     then generateWorldHTMLLines model ++ lines
+     else line:addWorldsToTemplateLines lines model
 
 generateWorldHTMLLines :: Model -> [String]
 generateWorldHTMLLines model =
   let modelWorlds = worlds model
       modelLines =
-        map (\world -> "{ id: " ++ (tag world) ++ ", reflexive: false} ") modelWorlds
-   in (map (\line -> line ++ ",") (init modelLines)) ++ [(last modelLines)]
+        map (\world -> "{ id: " ++ tag world ++ ", reflexive: false} ") modelWorlds
+   in map (++ ",") (init modelLines) ++ [last modelLines]
 
 addRelationsToTemplateLines :: [String] -> Model -> [String]
 addRelationsToTemplateLines [] _ = []
 addRelationsToTemplateLines (line:lines) model =
-  if (filter (\x -> x /=  ' ') line) == "RELATIONS"
-     then (generateRelationsHTMLLines model) ++ lines
-     else (line:(addRelationsToTemplateLines lines model))
+  if filter (/=  ' ') line == "RELATIONS"
+     then generateRelationsHTMLLines model ++ lines
+     else line:addRelationsToTemplateLines lines model
 
 generateRelationsHTMLLines  :: Model -> [String]
 generateRelationsHTMLLines model =
@@ -69,7 +70,7 @@ generateRelationsHTMLLines model =
       relationLines =
         map (\(relator, relatum) ->
              "{ source: nodes[" ++ relator ++ "], target: nodes[" ++ relatum ++ "], left: false, right:  true}") rels
-   in (map (\line -> line ++ ",") (init relationLines)) ++ [(last relationLines)]
+   in map (++ ",") (init relationLines) ++ [last relationLines]
 
 addKeyToTemplateLines  ::  [String] -> Model -> [String]
 addKeyToTemplateLines lines model =
@@ -79,8 +80,8 @@ addKeyToTemplateLines lines model =
       body = map (\world ->
         let trues = joinStrings "," . map show . trueFormulas $  world
             falses  = joinStrings "," . map show . falseFormulas $ world
-         in  "<p>World " ++ (tag world) ++ "<b>⊨</b>" ++ trues ++ "<b>⊭</b>" ++ falses ++ "</p>") modelWorlds
-  in start ++ body ++ [(last lines)]
+         in  "<p>World " ++ tag world ++ "<b>⊨</b>" ++ trues ++ "<b>⊭</b>" ++ falses ++ "</p>") modelWorlds
+  in start ++ body ++ [last lines]
 
 getWorldByTag :: Model -> String -> PossibleWorld
 getWorldByTag model tagString =
@@ -97,7 +98,7 @@ data PossibleWorld = PossibleWorld {trueFormulas :: [Formula]
                    } deriving (Eq, Ord)
 
 instance Show PossibleWorld where
-  show world = (tag world) ++ " |= " ++ (show . trueFormulas $ world) ++ "|/= " ++ (show . falseFormulas $ world)
+  show world = tag world ++ " |= " ++ (show . trueFormulas $ world) ++ "|/= " ++ (show . falseFormulas $ world)
 
 generateNextTag :: String -> String
 generateNextTag string = show ((read string :: Int) + 1)
@@ -105,9 +106,9 @@ generateNextTag string = show ((read string :: Int) + 1)
 
 makeWorld :: [Formula] -> [Formula] -> String -> PossibleWorld
 makeWorld trueFormulas falseFormulas tag =
-  let trues = (slowRemoveDuplicates trueFormulas)
-      falses = (slowRemoveDuplicates falseFormulas)
-   in (PossibleWorld trues falses tag)
+  let trues = slowRemoveDuplicates trueFormulas
+      falses = slowRemoveDuplicates falseFormulas
+   in PossibleWorld trues falses tag
 
 addTrueFormula :: PossibleWorld -> Formula -> PossibleWorld
 addTrueFormula (PossibleWorld true false tag) formula =
@@ -132,28 +133,27 @@ getRelatedWorldTags accumulator visitedTags relations tag =
   let newVisitedTags = (tag:visitedTags)
       oneStepRelated =
         foldl (\acc (relator, relatum) ->
-          if relator == tag && relatum /= tag && not (relatum `elem` visitedTags)
-             then (relatum:acc)
+          if relator == tag && relatum /= tag && notElem relatum visitedTags
+             then relatum:acc
              else acc) [] relations
       recursiveResults =
         mapAppend (getRelatedWorldTags accumulator newVisitedTags relations) oneStepRelated
    in tag:recursiveResults
 
 makeWorldFromSequent :: Sequent -> String -> PossibleWorld
-makeWorldFromSequent (Sequent negs poss) tag =
-  makeWorld negs poss tag
+makeWorldFromSequent (Sequent negs poss) = makeWorld negs poss
 
 replaceWorldInModel :: Model -> PossibleWorld -> PossibleWorld -> Model
 replaceWorldInModel (Model worlds relations) old new =
   let newWorlds = replaceWorldInWorlds worlds old new
-   in (Model newWorlds relations)
+   in Model newWorlds relations
 
 replaceWorldInWorlds ::  [PossibleWorld] -> PossibleWorld -> PossibleWorld -> [PossibleWorld]
 replaceWorldInWorlds [] _ _  = []
 replaceWorldInWorlds (world:worlds) old new =
   if world == old
-     then (new:(replaceWorldInWorlds worlds old new))
-     else (world:(replaceWorldInWorlds worlds old new))
+     then new:replaceWorldInWorlds worlds old new
+     else world:replaceWorldInWorlds worlds old new
 
 ------------------
 -- Satisfaction --
@@ -166,7 +166,7 @@ hypersequentSatisfies formula hyper@(World seq hypers) =
         map (\model -> satisfies formula model (getWorldByTag model "0")) models
       satisfiedModels =
         potentialSatisfiedModels `using`parList rdeepseq
-   in some (\x -> x == True) satisfiedModels
+   in some (== True) satisfiedModels
 
 getCounterExample :: Formula -> [Hypersequent] -> Maybe Model
 getCounterExample formula [] = Nothing
@@ -179,42 +179,37 @@ getCounterExample formula (h@(World seq moreHypers):hypers) =
                 satisfiesInternal (Not formula) model  world
            in case maybeVal of
              Just True -> True
-             otherwise -> False) models
- in if survivingModels == []
+             _ -> False) models
+ in if null survivingModels
        then Nothing
     else Just (head survivingModels)
 
 satisfies :: Formula -> Model -> PossibleWorld -> Bool
 satisfies form model world =
-  if world `elem` (worlds model)
-     then let (updatedModel, value) = satisfiesInternal form model world
-           in case value of
-             Just value -> value
-             Nothing -> False
-     else False
+  world `elem` worlds model &&
+     (let (updatedModel, value) = satisfiesInternal form model world
+       in Just True == value)
+
+
 
 debugMode = False
 satisfiesIntermediate  :: Formula -> Model -> PossibleWorld -> (Model, Maybe Bool)
 satisfiesIntermediate formula model  world =
   if debugMode
-     then trace ("SatisfiesInternal: " ++ (show formula) ++ " " ++ (tag world)) (satisfiesInternal formula model world)
+     then trace ("SatisfiesInternal: " ++ show formula ++ " " ++ tag world) (satisfiesInternal formula model world)
      else satisfiesInternal formula model world
 
 satisfiesInternal :: Formula -> Model -> PossibleWorld -> (Model, Maybe Bool)
 -- TODO: There are probably  some good  abstractions  to  be made
 -- in the quantified parts of this
-satisfiesInternal form@(AtomicFormula string) model world =
-  if form `elem` (trueFormulas world)
-     then (model, Just True)
-     else if form `elem` (falseFormulas world)
-             then (model, Just False)
-             else (model, Nothing)
-satisfiesInternal (Not (AtomicFormula string)) model world =
- if (AtomicFormula  string) `elem` (trueFormulas world)
-    then (model, Just False)
-    else if (AtomicFormula string)  `elem` (falseFormulas world)
-         then (model, Just True)
-         else (model, Nothing)
+satisfiesInternal form@(AtomicFormula string) model world
+  | form `elem` trueFormulas world = (model, Just True)
+  | form `elem` falseFormulas world = (model, Just False)
+  | otherwise = (model, Nothing)
+satisfiesInternal (Not (AtomicFormula string)) model world
+  | AtomicFormula string `elem` trueFormulas world = (model, Just False)
+  | AtomicFormula string `elem` falseFormulas world = (model, Just True)
+  | otherwise = (model, Nothing)
 satisfiesInternal (Not form) model world =
   let (newModel, recursiveValue) = satisfiesIntermediate form model world
       result = case recursiveValue of
@@ -244,7 +239,7 @@ satisfiesJunctionInternal (x:xs) model world startingValue =
        if value /= startingValue
           then (m, maybeValue)
           else satisfiesJunctionInternal  xs model world startingValue
-     otherwise -> satisfiesJunctionInternal xs model world startingValue
+     _ -> satisfiesJunctionInternal xs model world startingValue
 
 satisfiesModalInternal :: Formula -> Model -> [PossibleWorld] -> Bool -> (Model, Maybe Bool)
 satisfiesModalInternal _ model [] startingValue =
@@ -256,14 +251,15 @@ satisfiesModalInternal form model (world:worlds) startingValue =
        if value /= startingValue
           then (m, Just value)
           else satisfiesModalInternal form m worlds startingValue
-     otherwise -> satisfiesModalInternal form m worlds startingValue
+     _ -> satisfiesModalInternal form m worlds startingValue
 
 buildModelsFromHypersequent :: Hypersequent -> String -> [Model]
 buildModelsFromHypersequent hypersequent@(World seq hypers) rootTag =
   let (worlds, relations, _) = makeWorldsAndRelations hypersequent rootTag
-      baseModel = reduceComplexFormulas $ (Model worlds relations)
-      atoms = gatherAtomicFormulasInModel baseModel
-      --atoms = gatherAtomicFormulasInHypersequent hypersequent
+      baseModel = Model worlds relations
+      --baseModel = reduceComplexFormulas $ (Model worlds relations)
+      atoms = gatherAtomicFormulasInHypersequent hypersequent
+      --atoms = gatherAtomicFormulasInModel baseModel
    in completeModelWithFormulas baseModel atoms
 
 makeWorldsAndRelations :: Hypersequent -> String -> ([PossibleWorld], [(String, String)], String)
@@ -275,45 +271,52 @@ makeWorldsAndRelations (World seq hypers) rootTag =
          (updatedWorlds, updatedRels, lastTag) =
            makeWorldsAndRelations hyper nextTag
          newWorlds = accWorlds ++ updatedWorlds
-         resultTag = (tag resultWorld)
+         resultTag = tag resultWorld
          newRootTag = tag newRoot
          newRels = ((resultTag, newRootTag):accRelations) ++ updatedRels
       in (newWorlds, newRels, lastTag)) ([resultWorld], [], rootTag) hypers
 
 reduceComplexFormulas :: Model -> Model
+reduceComplexFormulas model =
+  foldl (\acc world -> reduceFormulasAtWorld world model) model (worlds model)
+
+reduceFormulasAtWorld :: PossibleWorld -> Model -> Model
+-- TOOD: START HERE
+reduceFormulasAtWorld w m = m
+
+
 
 completeModelWithFormulas :: Model -> [Formula] -> [Model]
-completeModelWithFormulas model forms =
+completeModelWithFormulas model =
   foldl (\acc form ->
-    if  acc == []
+    if null acc
        then completeModelWithFormula model form
-       else mapAppend (\model ->
-         completeModelWithFormula model form) acc) [] forms
+       else mapAppend (`completeModelWithFormula` form) acc) []
 
 completeModelWithFormula :: Model -> Formula -> [Model]
 completeModelWithFormula base@(Model [] _) _ =  [base]
 completeModelWithFormula base@(Model (world:worlds) relations) form =
   let recursiveModels = completeModelWithFormula (Model worlds relations) form
    in if formulaAtWorldP world form
-         then map (\(Model ws rs) -> (Model (world:ws) rs)) recursiveModels
+         then map (\(Model ws rs) -> Model (world:ws) rs) recursiveModels
          else foldl (\acc (Model ws rs) ->
            let newTrueWorld = addTrueFormula world form
-               newTrueModel = (Model (newTrueWorld:ws) relations)
+               newTrueModel = Model (newTrueWorld:ws) relations
                newFalseWorld = addFalseFormula world form
-               newFalseModel = (Model (newFalseWorld:ws) relations)
+               newFalseModel = Model (newFalseWorld:ws) relations
             in (newTrueModel:newFalseModel:acc)) [] recursiveModels
 
-p = (AtomicFormula "p")
-q = (AtomicFormula "q")
+p = AtomicFormula "p"
+q = AtomicFormula "q"
 
 s0 = makeSequent [p,q]  []
 s1 = makeSequent [p] []
 s2 = makeSequent []  [p,q]
 
-h1 = (World s0 [(World s2 [])])
+h1 = World s0 [World s2 []]
 m1 = buildModelsFromHypersequent h1 "0"
 
-f = (Necessarily (Possibly (Or [(Necessarily p), (And [p, (Not p)])])))
-h = (World (makeSequent []  [])[(World (makeSequent []  [(Possibly (Or [(Necessarily (AtomicFormula "p")),(And [(AtomicFormula "p"),(Not (AtomicFormula "p"))])])),(Or [(Necessarily (AtomicFormula "p")),(And [(AtomicFormula "p"),(Not (AtomicFormula "p"))])])])[])])
+f = Necessarily (Possibly (Or [Necessarily p, And [p, Not p]]))
+h = World (makeSequent []  [])[World (makeSequent []  [Possibly (Or [Necessarily (AtomicFormula "p"),And [AtomicFormula "p",Not (AtomicFormula "p")]]),Or [Necessarily (AtomicFormula "p"),And [AtomicFormula "p",Not (AtomicFormula "p")]]])[]]
 
 m = buildModelsFromHypersequent h "0"

@@ -1,0 +1,13 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "IntuitionisticTheoremProver:lib"
+
+    - path: "./app/Main.hs"
+      component: "IntuitionisticTheoremProver:exe:IntuitionisticTheoremProver-exe"
+
+    - path: "./app/Paths_IntuitionisticTheoremProver.hs"
+      component: "IntuitionisticTheoremProver:exe:IntuitionisticTheoremProver-exe"
+
+    - path: "./test"
+      component: "IntuitionisticTheoremProver:test:IntuitionisticTheoremProver-test"

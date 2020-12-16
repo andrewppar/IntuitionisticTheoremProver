@@ -28,8 +28,16 @@ source-repository head
 library
   exposed-modules:
       Lib
+      Prover
+      Formula
   other-modules:
       Paths_IntuitionisticTheoremProver
+      Canonicalizer
+      Hypersequent
+      IntuitionisticTranslator
+      Model
+      Sequent
+      Utilities
   hs-source-dirs:
       src
   build-depends:
@@ -59,4 +67,5 @@ test-suite IntuitionisticTheoremProver-test
   build-depends:
       IntuitionisticTheoremProver
     , base >=4.7 && <5
+    , hspec
   default-language: Haskell2010

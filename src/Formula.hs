@@ -34,7 +34,7 @@ import Data.Maybe
 import Data.Char
 
 
- -- * Propositional Language
+ -- Propositional Language
 data Formula = AtomicFormula {atom :: String}
              | And         {conjuncts :: [Formula]}
              | Or          {disjuncts :: [Formula]}
