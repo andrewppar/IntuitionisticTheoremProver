@@ -31,49 +31,49 @@ canonicalizeFormula formula =
 
 implicationOut :: Formula -> Formula
 implicationOut (And conjuncts)                 =
-  (And (map implicationOut conjuncts))
+  And (map implicationOut conjuncts)
 implicationOut (Or disjuncts)                  =
-  (Or  (map implicationOut disjuncts))
+  Or  (map implicationOut disjuncts)
 implicationOut (Implies antecedent consequent) =
-  (Or [(Not (implicationOut antecedent)), (implicationOut consequent)])
+  Or [Not (implicationOut antecedent), implicationOut consequent]
 implicationOut (Equivalent one two)            =
-  (Equivalent (implicationOut one) (implicationOut two))
+  Equivalent (implicationOut one) (implicationOut two)
 implicationOut (Not negatum)                   =
-  (Not (implicationOut negatum))
+  Not (implicationOut negatum)
 implicationOut (Possibly possibility)          =
-  (Possibly (implicationOut possibility))
+  Possibly (implicationOut possibility)
 implicationOut (Necessarily necessity)         =
-  (Necessarily (implicationOut necessity))
+  Necessarily (implicationOut necessity)
 implicationOut atomic                          =
   atomic
 
 negationIn :: Formula -> Formula
 negationIn (And conjuncts)                  =
-  (And (map negationIn conjuncts))
+  And (map negationIn conjuncts)
 negationIn (Or disjuncts)                   =
-  (Or  (map negationIn disjuncts))
+  Or  (map negationIn disjuncts)
 negationIn (Implies antecedent consequent) =
-    (Implies (negationIn antecedent) (negationIn consequent))
+    Implies (negationIn antecedent) (negationIn consequent)
 negationIn (Equivalent one two) =
-  (Equivalent (negationIn one) (negationIn two))
-negationIn (Not (And (conjuncts))) =
-  (Or (map (\formula -> (negationIn (Not formula))) conjuncts))
-negationIn (Not (Or  (disjuncts))) =
-  (And (map (\formula -> (negationIn (Not formula))) disjuncts))
+  Equivalent (negationIn one) (negationIn two)
+negationIn (Not (And conjuncts)) =
+  Or (map (negationIn . Not) conjuncts)
+negationIn (Not (Or  disjuncts)) =
+  And (map (negationIn . Not) disjuncts)
 negationIn (Not (Not negatum)) =
-  (Not (Not (negationIn negatum)))
+  Not (Not (negationIn negatum))
 negationIn (Not (Implies antecedent consequent)) =
-  (And [(negationIn antecedent), (negationIn (Not consequent))])
+  And [negationIn antecedent, negationIn (Not consequent)]
 negationIn (Not (Equivalent one two)) =
-  (Equivalent (Not one) two)
+  Equivalent (Not one) two
 negationIn (Not (Possibly possibility))  =
-  (Necessarily (negationIn (Not possibility)))
+  Necessarily (negationIn (Not possibility))
 negationIn (Not (Necessarily necessity)) =
-  (Possibly (negationIn (Not necessity)))
+  Possibly (negationIn (Not necessity))
 negationIn (Possibly possibility) =
-  (Possibly (negationIn possibility))
+  Possibly (negationIn possibility)
 negationIn (Necessarily necessity) =
-  (Necessarily (negationIn necessity))
+  Necessarily (negationIn necessity)
 negationIn atomic = atomic
 
 reduceNegations :: Formula -> Formula  -- remove any double negations
@@ -211,8 +211,8 @@ formulaTransform :: Formula -> (Formula -> Formula) -> Formula
 formulaTransform (Not negatum) f = Not . f $ negatum
 formulaTransform (Implies ant cons) f = Implies (f ant) (f cons)
 formulaTransform (Equivalent one two) f = Equivalent (f one) (f two)
-formulaTransform (And conjuncts) f = And . (map f) $ conjuncts
-formulaTransform (Or disjuncts) f = Or . (map f) $ disjuncts
+formulaTransform (And conjuncts) f = And . map f $ conjuncts
+formulaTransform (Or disjuncts) f = Or . map f $ disjuncts
 formulaTransform atom f = f atom
 
 formulaSetsEqualP :: [Formula] -> [Formula] -> Bool
@@ -222,4 +222,4 @@ formulaSetsEqualP formsOne formsTwo =
     in sortedOne == sortedTwo
 
 formulaListsOverlapP :: [Formula] -> [Formula] -> Bool
-formulaListsOverlapP formulasOne formulasTwo  = listsOverlapP formulaLessThan formulasOne formulasTwo
+formulaListsOverlapP = listsOverlapP formulaLessThan
