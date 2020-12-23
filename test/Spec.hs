@@ -1,6 +1,7 @@
 import Test.Hspec
 import Formula
 import Prover
+import Utilities
 
 p :: Formula
 p = AtomicFormula "p"
@@ -11,8 +12,25 @@ q = AtomicFormula "q"
 
 main :: IO()
 main = hspec $ do
-  describe "Test Suite for IntuitionisticTheoremProver" spec_prove
+   describe "Cartesian Product Tests" spec_cartesianProduct
+   describe "Prove Tests" spec_prove
 
+spec_cartesianProduct :: Spec
+spec_cartesianProduct = do
+  it (show [["a", "b"], ["c", "d"]] ++ "should be [[\"a\", \"c\"], [\"a\", \"d\"], [\"b\", \"c\"], [\"b\", \"d\"]]") $
+      cartesianProduct [["a", "b"], ["c", "d"]] `shouldBe` [["a", "c"], ["a", "d"], ["b", "c"], ["b", "d"]]
+
+  it (show [[1, 2], [3], [4, 5, 6]] ++ " should be [[1,3,4], [1,3,5], [1,3,6], [2,3,4], [2,3,5], [2,3,6]]") $
+     cartesianProduct [[1, 2], [3], [4, 5, 6]] `shouldBe` [[1,3,4], [1,3,5], [1,3,6], [2,3,4], [2,3,5], [2,3,6]]
+
+  it (show [[1,0], [1,0], [1,0]] ++ " should be [[1,1,1], [1,1,0], [1,0,1], [1,0,0], [0,1,1], [0,1,0],[0,0,1],[0,0,0]]") $
+     cartesianProduct [[1,0], [1,0], [1,0]] `shouldBe` [[1,1,1], [1,1,0], [1,0,1], [1,0,0], [0,1,1], [0,1,0],[0,0,1],[0,0,0]]
+
+  it (show [[], [1,0]] ++ " should be [[1], [0]]") $
+     cartesianProduct [[], [1,0]] `shouldBe` [[1], [0]]
+
+  it (show [[1,0]] ++ " should be " ++ show [[1], [0]]) $
+    cartesianProduct [[1,0]] `shouldBe` [[1], [0]]
 
 spec_prove :: Spec
 spec_prove = do
