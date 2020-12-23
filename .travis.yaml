@@ -1,10 +1,11 @@
-sudo: true
 language: haskell
 
 git:
   depth: 5
 
-cabal: "2.4"
+dist: xenial
+ 
+os: linux
 
 cache:
   directories:
@@ -12,7 +13,7 @@ cache:
   - "$HOME/.stack"
   - "$TRAVIS_BUILD_DIR/.stack-work"
 
-matrix:
+jobs:
   include:
 
   # Cabal
