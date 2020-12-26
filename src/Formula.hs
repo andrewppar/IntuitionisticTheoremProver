@@ -26,6 +26,14 @@ module Formula
     , parseNecessityString
     , getTopLevelItems
     , getTopLevelItemsInternal
+    , gatherAtomicFormulas
+    , gatherNegations
+    , gatherImplications
+    , gatherConjunctions
+    , gatherDisjunctions
+    , gatherPossibilities
+    , gatherFormulas
+    , gatherNecessities
     , sortFormulas
     ) where
 
@@ -409,12 +417,40 @@ necessityP :: Formula -> Bool
 necessityP (Necessarily _) = True
 necessityP _ = False
 
+gatherAtomicFormulas :: [Formula] -> ([Formula], [Formula])
+gatherAtomicFormulas = gatherFormulas atomicFormulaP
+
+gatherImplications :: [Formula] -> ([Formula], [Formula])
+gatherImplications = gatherFormulas implicationP
+
+gatherConjunctions :: [Formula] -> ([Formula],[Formula])
+gatherConjunctions = gatherFormulas conjunctionP
+
+gatherDisjunctions :: [Formula] -> ([Formula],[Formula])
+gatherDisjunctions = gatherFormulas disjunctionP
+
+gatherNegations :: [Formula] -> ([Formula],[Formula])
+gatherNegations = gatherFormulas negationP
+
+gatherPossibilities :: [Formula] -> ([Formula], [Formula])
+gatherPossibilities = gatherFormulas possibilityP
+
+gatherNecessities :: [Formula] -> ([Formula], [Formula])
+gatherNecessities = gatherFormulas necessityP
+
+gatherFormulas :: (Formula -> Bool) -> [Formula] -> ([Formula],[Formula])
+gatherFormulas predicate =
+    foldl
+    (\(relevantFormulas, irrelevantFormulas) formula ->
+         if predicate formula
+         then (formula:relevantFormulas, irrelevantFormulas)
+         else (relevantFormulas, formula:irrelevantFormulas)) ([],[])
 
 possiblyFormulaDisjuncts :: Formula -> [Formula]
-possiblyFormulaDisjuncts formula = possiblyFormulaJuncts disjunctionP disjuncts formula
+possiblyFormulaDisjuncts = possiblyFormulaJuncts disjunctionP disjuncts
 
 possiblyFormulaConjuncts :: Formula -> [Formula]
-possiblyFormulaConjuncts formula = possiblyFormulaJuncts conjunctionP conjuncts formula
+possiblyFormulaConjuncts = possiblyFormulaJuncts conjunctionP conjuncts
 
 possiblyFormulaJuncts :: (Formula -> Bool) -> (Formula -> [Formula]) ->  Formula -> [Formula]
 --This is a weird function. I couldn't think of a more natural name than this either. It is meant to be used in our functions that transform a right disjunction or a left disjunction. Given a junctionP function it will either return all of the juncts of the input formula or the list containing the original formula.
