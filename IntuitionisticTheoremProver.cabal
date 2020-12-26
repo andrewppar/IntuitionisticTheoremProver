@@ -30,6 +30,7 @@ library
       Lib
       Prover
       Formula
+      Utilities
   other-modules:
       Paths_IntuitionisticTheoremProver
       Canonicalizer
@@ -37,11 +38,9 @@ library
       IntuitionisticTranslator
       Model
       Sequent
-      Utilities
   hs-source-dirs:
       src
-  build-depends:
-      base >=4.7 && <5, parallel, containers
+  build-depends: base >=4.7 && <5, containers, hspec >= 2.7.4, parallel
   default-language: Haskell2010
 
 executable IntuitionisticTheoremProver-exe
@@ -52,8 +51,9 @@ executable IntuitionisticTheoremProver-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      IntuitionisticTheoremProver
-    , base >=4.7 && <5
+                    IntuitionisticTheoremProver
+                , base >=4.7 && <5
+                , hspec >= 2.7.4
   default-language: Haskell2010
 
 test-suite IntuitionisticTheoremProver-test
@@ -65,7 +65,8 @@ test-suite IntuitionisticTheoremProver-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      IntuitionisticTheoremProver
-    , base >=4.7 && <5
-    , hspec
+                    IntuitionisticTheoremProver
+                , base >=4.7 && <5
+                , hspec
+                , hspec >= 2.7.4
   default-language: Haskell2010

@@ -22,6 +22,7 @@ module Utilities
     , joinStrings
     , makePrefix
     , setsEqual
+    , setMinus
     , compareListsByFunction
     , listOfRepeatsP
     ) where
@@ -84,15 +85,16 @@ addEachToEachInList xs (y:ys) =
 
 
 
-cartesianProduct :: [[a]] -> [[a]]  -- @todo make this recursive
+cartesianProduct :: [[a]] -> [[a]]
 cartesianProduct [] =  []
-cartesianProduct [x] = map (\y -> [y])  x
+cartesianProduct [x] = map (:[]) x
 cartesianProduct (firstList:lists) =
   let recursiveCase = cartesianProduct lists
-   in foldr (\item result ->
-     let intermediateResult =
-           foldr (\list acc -> (item:list):acc) [] recursiveCase
-      in intermediateResult ++ result) [] firstList
+   in if null firstList
+      then recursiveCase
+      else foldr (\item result ->
+                    let intermediateResult = map (item:) recursiveCase
+                    in intermediateResult ++ result) [] firstList
 
 
 addToEach :: [a] -> [[a]] -> [[a]]
@@ -189,6 +191,14 @@ setsEqual xs ys =
         (\a b ->
           (filter (\bool -> bool /= True) . map (\x ->  x `elem` b) $ a) ==  [])
    in (subset xs ys) && subset ys xs
+
+setMinus :: (Eq a) => [a] -> [a] -> [a]
+-- Removes all instances of the second list from the first list
+setMinus [] _ = []
+setMinus (x:xs) toBeRemoved =
+    if x `elem` toBeRemoved
+       then setMinus xs toBeRemoved
+       else x:setMinus xs toBeRemoved
 
 compareListsByFunction :: (a -> a -> Bool) -> [a] -> [a] -> Bool
 compareListsByFunction f [] _ = True

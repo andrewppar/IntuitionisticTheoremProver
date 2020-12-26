@@ -6,11 +6,44 @@ Welcome to the documentation for the Intuitionistic Theorem Checker. This can be
 
 
 ## Table of Contents
-1. [Formulas](#forms)
+1. [Installation](#install)
 2. [Usage](#main)
+3. [Formulas](#forms)
 
-<a name="forms"></a>
-## 1. Formulas
+<a name="main"></a>
+## 2. Usage
+Clone this repo: 
+
+    git@github.com:andrewppar/IntuitionisticTheoremProver
+
+You'll have to have stack installed if you want to compile the binary yourself. This can be done with the command 
+    
+    stack build
+
+in the root of the repo. 
+
+In order to see whether or not a formula is provable or has a counterexample pass a formula to the Main module. 
+
+For example: 
+
+    ./src/Main '(Not (AtomicFormula "p"))' 
+
+will result in CounterExample because there is a counter example to the formula (Not (AtomicFormula "p")) has as counter-example. 
+
+In addition to seeing whether or not a formula is a theorem you can see the /justification/ for why it's a theorem. This can be done by passing the '-s' flag to the Main function, e.g. 
+
+    ./src/Main -s '(Not (AtomicFormula "p"))' 
+
+This will print a model like so 
+
+    Right Worlds:
+     0 |= ["p"]|/= []
+    
+    Relations:
+
+In this case a model with a single world that makes (AtomicFormula "p") true is a counter example to the above formula.
+
+## 3. Formulas <a name="forms"></a>
 
 In order to use the theorem checker it's important to pass it well-formed formulas otherwise it will not know what to do with them. Formulas are written in prefix notation (sorry it's WAY easier for a computer to work with). So if 'p' is a formula so is (Not p). Here's the full syntax: 
 
@@ -21,42 +54,3 @@ In order to use the theorem checker it's important to pass it well-formed formul
  - if p and q are formulas then (Implies p q) is a formula
  - if p and q are formulas then (Equivalent p q) are formulas
  
-<a name="main"></a>
-## 2. Usage
-
-Clone this repo: 
-```
-git@github.com:andrewppar/ModalTheoremProver.git
-```
-
-You'll have to have ghc installed if you want to compile the binary yourself. This can be done with the command 
-
-```make main``` 
-
-in the root of the repo. Alternatively, the most up  to date binary is included in the repo. 
-
-In order to see whether or not a formula is provable or has a counterexample pass a formula to the Main module. 
-
-For example: 
-```
-./ModalTheoremProver/Main '(Not (AtomicFormula "p"))' 
-```
-
-will result in CounterExample because there is a counter example to the formula (Not (AtomicFormula "p")) has as counter-example. 
-
-In addition to seeing whether or not a formula is a theorem you can see the /justification/ for why it's a theorem. This can be done by passing the '-s' flag to the Main function, e.g. 
-
-```
-./ModalTheoremProver/Main -s '(Not (AtomicFormula "p"))' 
-```
-
-This will print a model like so 
-```
-Right Worlds:
- 0 |= ["p"]|/= []
-
-Relations:
-```
-In this case a model with a single world that makes (AtomicFormula "p") true is a counter example to the above formula.
-
-
