@@ -1,7 +1,6 @@
 # Intuitionistic Theorem Prover!
 
-[![Build Status](travis-ci.com/github/andrewppar/IntuitionisticTheoremProver.png)](travis-ci.com/github/andrewppar/IntuitionisticTheoremProver)
-
+[![Build Status](https://travis-ci.com/andrewppar/IntuitionisticTheoremProver.svg?branch=develop)](https://travis-ci.com/andrewppar/IntuitionisticTheoremProver)
 
 ## Intro
 

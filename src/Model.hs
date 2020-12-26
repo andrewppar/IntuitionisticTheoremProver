@@ -11,8 +11,6 @@ import Formula
 import Sequent
 import Hypersequent
 import Utilities
-import Data.Maybe
-import qualified Data.Map as Map
 import Debug.Trace
 import Control.Parallel.Strategies
 
@@ -96,6 +94,22 @@ getWorldByTag model tagInt =
                 then world:acc
                 else acc) [] . worlds $ model
 
+sortModels :: (Model ->  Bool) -> [Model] -> ([Model], [Model])
+sortModels f =
+  foldl (\(passing, notPassing) model -> if f model
+                                         then (model:passing, notPassing)
+                                         else (passing, model:notPassing)) ([], [])
+
+consistentModelP :: Model -> Bool
+consistentModelP = all consistentWorldP . worlds
+
+consistentWorldP :: PossibleWorld -> Bool
+consistentWorldP possibleWorld =
+  null . setIntersection (trueFormulas possibleWorld) . falseFormulas $ possibleWorld
+
+atomicModelP :: Model -> Bool
+atomicModelP model = all (`atomicModelAtWorldP` model)  . worlds $ model
+
 atomicModelAtWorldP :: PossibleWorld -> Model -> Bool
 atomicModelAtWorldP world model =
   let modelWorld = getWorldByTag model . tag $ world
@@ -159,6 +173,10 @@ replaceWorldInModel :: Model -> PossibleWorld -> PossibleWorld -> Model
 replaceWorldInModel (Model worlds relations) old new =
   let newWorlds = replaceWorldInWorlds worlds old new
    in Model newWorlds relations
+
+addWorldToModel :: Model -> PossibleWorld -> [(Int, Int)] -> Model
+addWorldToModel (Model worlds relations) world newRelations =
+  Model (worlds ++ [world]) (relations ++ newRelations)
 
 replaceWorldInWorlds ::  [PossibleWorld] -> PossibleWorld -> PossibleWorld -> [PossibleWorld]
 replaceWorldInWorlds [] _ _  = []
@@ -272,11 +290,11 @@ satisfiesModalInternal form model (world:worlds) startingValue =
 buildModelsFromHypersequent :: Hypersequent -> Int -> [Model]
 buildModelsFromHypersequent hypersequent rootTag =
   let (worlds, relations, _) = makeWorldsAndRelations hypersequent rootTag
-      baseModel = Model worlds relations
-      --baseModel = reduceComplexFormulas $ (Model worlds relations)
-      atoms = gatherAtomicFormulasInHypersequent hypersequent
+      --baseModel = Model worlds relations
+   in reduceComplexFormulas [Model worlds relations]
+      --atoms = gatherAtomicFormulasInHypersequent hypersequent
       --atoms = gatherAtomicFormulasInModel baseModel
-   in completeModelWithFormulas baseModel atoms
+--   in completeModelWithFormulas baseModel atoms
 
 makeWorldsAndRelations :: Hypersequent -> Int -> ([PossibleWorld], [(Int, Int)], Int)
 makeWorldsAndRelations (World seq hypers) rootTag =
@@ -292,26 +310,35 @@ makeWorldsAndRelations (World seq hypers) rootTag =
          newRels = ((resultTag, newRootTag):accRelations) ++ updatedRels
       in (newWorlds, newRels, lastTag)) ([resultWorld], [], rootTag) hypers
 
---reduceComplexFormulas :: Model -> [Model]
---reduceComplexFormulas model =
---  foldl (flip reduceFormulasAtWorld) [model] (worlds model)
+reduceComplexFormulas :: [Model] -> [Model]
+reduceComplexFormulas models =
+  let newModels = mapAppend reduceComplexFormulasInternal models
+      (atomicModels, nonAtomicModels) = sortModels atomicModelP newModels
+   in if null nonAtomicModels
+      then filter consistentModelP atomicModels
+      -- We might be able to just use the else clause
+      else filter consistentModelP atomicModels ++ reduceComplexFormulas nonAtomicModels
 
---reduceFormulasAtWorld :: PossibleWorld -> [Model] -> [Model]
--- TOOD: START HERE
---reduceFormulasAtWorld world models =
---  let newModels = reduceNegativePossibilityAtWorld world .
---                  reducePositiveNecessityAtWorld world .
---                  reducePositivePossibilityAtWorld world .
---                  reduceNegativeNecessityAtWorld world .
---                  reducePositiveConjunctionAtWorld world .
---                  reduceNegativeConjunctionAtWorld world .
---                  reducePositiveDisjunctionAtWorld world .
---                  reduceNegativeDisjunctionAtWorld world .
---                  reducePositiveNegationAtWorld world .
---                  reduceNegativeNegationAtWorld world $ models
---   in if all (atomicModelAtWorldP world) newModels
---         then newModels
---         else reduceFormulasAtWorld world newModels
+
+reduceComplexFormulasInternal :: Model -> [Model]
+reduceComplexFormulasInternal model =
+  foldl (flip reduceFormulasAtWorld) [model] (worlds model)
+
+reduceFormulasAtWorld :: PossibleWorld -> [Model] -> [Model]
+reduceFormulasAtWorld world models =
+  let newModels = reduceNegativePossibilityAtWorld world .
+                  reducePositiveNecessityAtWorld world .
+                  reducePositivePossibilityAtWorld world .
+                  reduceNegativeNecessityAtWorld world .
+                  reducePositiveConjunctionAtWorld world .
+                  reduceNegativeConjunctionAtWorld world .
+                  reducePositiveDisjunctionAtWorld world .
+                  reduceNegativeDisjunctionAtWorld world .
+                  reducePositiveNegationAtWorld world .
+                  reduceNegativeNegationAtWorld world $ models
+   in if all (atomicModelAtWorldP world) newModels
+         then newModels
+         else reduceFormulasAtWorld world newModels
 
 reduceNegativePossibilityAtWorld :: PossibleWorld -> [Model] -> [Model]
 reduceNegativePossibilityAtWorld world =
@@ -321,27 +348,35 @@ reducePositiveNecessityAtWorld :: PossibleWorld -> [Model] -> [Model]
 reducePositiveNecessityAtWorld world =
   map (reduceUniversalAtWorld Positive world)
 
+-- There's a bug here: Check m3 |-> m2
 reduceUniversalAtWorld :: Polarity -> PossibleWorld -> Model -> Model
 reduceUniversalAtWorld polarity world model@(Model _ relations) =
     let modelWorld = getWorldByTag model . tag $ world
         (relevantFormulas, irrelevantFormulas) = case polarity of
-          Positive -> gatherNecessities . trueFormulas $ world
-          Negative -> gatherPossibilities . falseFormulas $ world
+          Positive -> gatherNecessities . trueFormulas $ modelWorld
+          Negative -> gatherPossibilities . falseFormulas $ modelWorld
         relatedWorlds = getRelatedWorlds model modelWorld
         unrelatedWorlds = setMinus (worlds model) relatedWorlds
         newForms = case polarity of
           Positive -> map necessity relevantFormulas
           Negative -> map possibility relevantFormulas
-        newWorldRelevants = relevantFormulas ++ newForms
-        updatedWorlds = map (\world ->
-                               let currentTag = tag world
-                               in if world == modelWorld
+        updatedWorlds = map (\loopWorld ->
+                               let currentTag = tag loopWorld
+                               in if loopWorld == modelWorld
                                      then case polarity of
-                                            Positive -> PossibleWorld newWorldRelevants irrelevantFormulas currentTag
-                                            Negative -> PossibleWorld irrelevantFormulas newWorldRelevants currentTag
-                                     else foldl (case polarity of
-                                                   Positive -> addTrueFormula
-                                                   Negative -> addFalseFormula) world newWorldRelevants) relatedWorlds
+                                            Positive ->
+                                                PossibleWorld (newForms  ++ irrelevantFormulas)
+                                                              (falseFormulas loopWorld)
+                                                              currentTag
+                                            Negative ->
+                                                PossibleWorld (trueFormulas loopWorld)
+                                                              (newForms  ++ irrelevantFormulas)
+                                                              currentTag
+                                     else foldl
+                                              (case polarity of
+                                                 Positive -> addTrueFormula
+                                                 Negative -> addFalseFormula)
+                                                             loopWorld newForms) relatedWorlds
     in Model (updatedWorlds ++ unrelatedWorlds) relations
 
 reducePositivePossibilityAtWorld :: PossibleWorld -> [Model] -> [Model]
@@ -352,12 +387,13 @@ reduceNegativeNecessityAtWorld :: PossibleWorld -> [Model] -> [Model]
 reduceNegativeNecessityAtWorld world =
   map (reduceParticularAtWorld Negative world)
 
+
 reduceParticularAtWorld :: Polarity -> PossibleWorld -> Model -> Model
-reduceParticularAtWorld polarity world model@(Model _ relations) =
+reduceParticularAtWorld polarity world model =
     let modelWorld = getWorldByTag model . tag $ world
         (relevantFormulas, irrelevantFormulas) = case polarity of
-                                                   Positive -> gatherPossibilities . trueFormulas $ world
-                                                   Negative -> gatherPossibilities . falseFormulas $ world
+                                                   Positive -> gatherPossibilities . trueFormulas $ modelWorld
+                                                   Negative -> gatherNecessities . falseFormulas $ modelWorld
         highestTag = getHighestTag model
         (newWorlds, _) = foldl (\(worlds, lastTag) formula ->
                                         let newTag = generateNextTag lastTag
@@ -365,26 +401,86 @@ reduceParticularAtWorld polarity world model@(Model _ relations) =
                                           Positive -> (makeWorld [possibility formula] [] newTag:worlds, newTag)
                                           Negative -> (makeWorld [] [necessity formula] newTag:worlds, newTag)) ([], highestTag) relevantFormulas
         updatedWorld = case polarity of
-          Positive -> makeWorld irrelevantFormulas (falseFormulas world) (tag world)
-          Negative -> makeWorld (trueFormulas world) irrelevantFormulas (tag world)
+          Positive -> makeWorld irrelevantFormulas (falseFormulas modelWorld) (tag world)
+          Negative -> makeWorld (trueFormulas modelWorld) irrelevantFormulas (tag world)
         updatedModel = replaceWorldInModel model modelWorld updatedWorld
-        updatedRelations = map (\newWorld -> (tag world, tag newWorld)) newWorlds
-     in Model (worlds updatedModel) (relations ++ updatedRelations)
+     in if null newWorlds
+        then updatedModel
+        else foldl (\acc newWorld ->
+                      let accWorlds = worlds acc ++ [newWorld]
+                          accRels   = relations acc ++ [(tag world, tag newWorld)]
+                       in Model accWorlds accRels) updatedModel newWorlds
 
-reduceUniversalJunctionAtWorld :: Polarity -> PossibleWorld -> Model -> [Model]
+
+reduceNegativeConjunctionAtWorld :: PossibleWorld -> [Model] -> [Model]
+reduceNegativeConjunctionAtWorld world =
+  mapAppend (reduceParticularJunctionAtWorld Negative world)
+
+
+reducePositiveDisjunctionAtWorld :: PossibleWorld -> [Model] -> [Model]
+reducePositiveDisjunctionAtWorld world =
+  mapAppend (reduceParticularJunctionAtWorld Positive world)
+
+reduceParticularJunctionAtWorld :: Polarity -> PossibleWorld -> Model -> [Model]
+reduceParticularJunctionAtWorld polarity world model =
+  let currentTag = tag world
+      modelWorld = getWorldByTag model currentTag
+      (relevantFormulas, irrelevantFormulas) = case polarity of
+                                                  Positive -> gatherDisjunctions . trueFormulas $ modelWorld
+                                                  Negative -> gatherConjunctions . falseFormulas $ modelWorld
+      newFormulaGroups = cartesianProduct . map (case polarity of
+                                              Positive -> disjuncts
+                                              Negative -> conjuncts) $ relevantFormulas
+      newWorlds = if null newFormulaGroups
+                     then [modelWorld]
+                     else map (\formulas -> case polarity of
+                                             Positive -> makeWorld (formulas ++ irrelevantFormulas) (falseFormulas modelWorld) currentTag
+                                             Negative -> makeWorld (trueFormulas modelWorld) (formulas ++ irrelevantFormulas) currentTag) newFormulaGroups
+   in map (replaceWorldInModel model modelWorld) newWorlds
+
+reducePositiveConjunctionAtWorld :: PossibleWorld -> [Model] -> [Model]
+reducePositiveConjunctionAtWorld world =
+  map (reduceUniversalJunctionAtWorld Positive world)
+
+reduceNegativeDisjunctionAtWorld :: PossibleWorld -> [Model] -> [Model]
+reduceNegativeDisjunctionAtWorld world =
+  map (reduceUniversalJunctionAtWorld Negative world)
+
+reduceUniversalJunctionAtWorld :: Polarity -> PossibleWorld -> Model -> Model
 reduceUniversalJunctionAtWorld polarity world model =
   let currentTag = tag world
       modelWorld = getWorldByTag model currentTag
       (relevantFormulas, irrelevantFormulas) = case polarity of
-                                                  Positive -> gatherConjunctions . trueFormulas $ world
-                                                  Negative -> gatherDisjunctions . falseFormulas $ world
-      newFormulaGroups = cartesianProduct . map (case polarity of
-                                              Positive -> conjuncts
-                                              Negative -> disjuncts) $ relevantFormulas
-      newWorlds = map (\formulas -> case polarity of
-                                      Positive -> makeWorld (formulas ++ irrelevantFormulas) (falseFormulas modelWorld) currentTag
-                                      Negative -> makeWorld (trueFormulas modelWorld) (formulas ++ irrelevantFormulas) currentTag) newFormulaGroups
-   in map (replaceWorldInModel model modelWorld) newWorlds
+                                                 Positive -> gatherConjunctions . trueFormulas $ modelWorld
+                                                 Negative -> gatherDisjunctions . falseFormulas $ modelWorld
+      newFormulas = mapAppend (case polarity of
+                                 Positive -> conjuncts
+                                 Negative -> disjuncts) relevantFormulas
+      updatedWorld = case polarity of
+                       Positive -> makeWorld (newFormulas ++ irrelevantFormulas) (falseFormulas modelWorld) currentTag
+                       Negative -> makeWorld (trueFormulas modelWorld) (newFormulas ++ irrelevantFormulas) currentTag
+   in replaceWorldInModel model modelWorld updatedWorld
+
+reducePositiveNegationAtWorld :: PossibleWorld -> [Model] -> [Model]
+reducePositiveNegationAtWorld world =
+  map (reduceNegationAtWorldInternal Positive world)
+
+reduceNegativeNegationAtWorld :: PossibleWorld -> [Model] -> [Model]
+reduceNegativeNegationAtWorld world =
+  map (reduceNegationAtWorldInternal Negative world)
+
+reduceNegationAtWorldInternal :: Polarity -> PossibleWorld -> Model -> Model
+reduceNegationAtWorldInternal polarity world model =
+  let currentTag = tag world
+      modelWorld = getWorldByTag model currentTag
+      (relevantFormulas, irrelevantFormulas) = case polarity of
+                                                 Positive -> gatherNegations . trueFormulas $ modelWorld
+                                                 Negative -> gatherNegations . falseFormulas $ modelWorld
+      updatedFormulas = map negatum relevantFormulas
+      updatedWorld = case polarity of
+                       Positive -> makeWorld irrelevantFormulas (updatedFormulas ++ falseFormulas modelWorld) currentTag
+                       Negative -> makeWorld (updatedFormulas ++ trueFormulas modelWorld) irrelevantFormulas currentTag
+   in replaceWorldInModel model modelWorld updatedWorld
 
 completeModelWithFormulas :: Model -> [Formula] -> [Model]
 completeModelWithFormulas model =
@@ -413,10 +509,31 @@ s0 = makeSequent [p,q]  []
 s1 = makeSequent [p] []
 s2 = makeSequent []  [p,q]
 
-h1 = World s0 [World s2 []]
-m1 = buildModelsFromHypersequent h1 0
+h1 = (World (makeSequent []  [])[(World (makeSequent []  [(AtomicFormula "p")])[]),(World (makeSequent []  [(Possibly (Not (AtomicFormula "p"))),(Not (AtomicFormula "p"))])[])])
+--m1 = buildModelsFromHypersequent h1 0
 
 f = Necessarily (Possibly (Or [Necessarily p, And [p, Not p]]))
 h = World (makeSequent []  [])[World (makeSequent []  [Possibly (Or [Necessarily (AtomicFormula "p"),And [AtomicFormula "p",Not (AtomicFormula "p")]]),Or [Necessarily (AtomicFormula "p"),And [AtomicFormula "p",Not (AtomicFormula "p")]]])[]]
 
-m = buildModelsFromHypersequent h 0
+(ws, rs,t) = makeWorldsAndRelations h 0
+world = head . tail $ ws
+m  = Model ws rs
+m1 = reduceNegativePossibilityAtWorld world m2
+m2 = reducePositiveNecessityAtWorld world m3
+m3 = reducePositivePossibilityAtWorld world m4
+m4 = reduceNegativeNecessityAtWorld world m5
+m5 = reducePositiveConjunctionAtWorld world m6
+m6 = reduceNegativeConjunctionAtWorld world m7
+m7 = reducePositiveDisjunctionAtWorld world m8
+m8 = reduceNegativeDisjunctionAtWorld world m9
+m9 = reducePositiveNegationAtWorld world m10
+m10 = reduceNegativeNegationAtWorld world [m]
+
+
+
+
+w = head . tail . worlds  $ m
+ms = reduceNegativeDisjunctionAtWorld w [m]
+newM = reduceParticularAtWorld Negative w (head ms)
+
+--m = buildModelsFromHypersequent h 0

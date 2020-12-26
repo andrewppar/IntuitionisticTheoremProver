@@ -13,7 +13,6 @@ import Hypersequent
 import Model
 import IntuitionisticTranslator
 import Data.Maybe
-
 data ProofTree = Closed | Open | Node Hypersequent [ProofTree] deriving (Eq)
 
 data ProofTreeStatus = Proved | CounterExample  | Unknown deriving (Eq, Show)
@@ -375,7 +374,9 @@ pandq = (And [p, q])
 --h2 = (World s2 [(World s3 [(World s2 [])]), (World s4 [])])
 --p1 = Node h1 [(Node h2 [(Node h2 [(Node h1 [Open])]), (Node h1 [Closed])])]
 
-f = (Not (And [(Implies p p), (Not p)]))
+f = Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")
+
+
 
 (st, cf) = generateStartingProofTree f
 

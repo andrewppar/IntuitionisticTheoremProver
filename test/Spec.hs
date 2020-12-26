@@ -70,15 +70,15 @@ spec_prove = do
   it (show (Implies p p) ++ " should be Proved") $
      prove (Implies p p) `shouldBe` Proved
 
-  it (show (Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")) ++ " should be Proved") $
-     prove (Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")) `shouldBe` Proved
+--  it (show (Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")) ++ " should be Proved") $
+--     prove (Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")) `shouldBe` Proved
+--
+--  it (show (Equivalent (Equivalent p q)(Equivalent q p)) ++ " should be Proved") $
+--     prove (Equivalent (Equivalent p q)(Equivalent q p)) `shouldBe` Proved
 
-  it (show (Equivalent (Equivalent p q)(Equivalent q p)) ++ " should be Proved") $
-     prove (Equivalent (Equivalent p q)(Equivalent q p)) `shouldBe` Proved
-
-  it (show (Implies (And [Or [p, q], Implies p (Not q), Implies p q])(And [q, Not p])) ++ " should be Proved") $
-     prove (Implies (And [Or [p, q], Implies p (Not q), Implies p q])(And [q, Not p])) `shouldBe` Proved
-
+--  it (show (Implies (And [Or [p, q], Implies p (Not q), Implies p q])(And [q, Not p])) ++ " should be Proved") $
+--     prove (Implies (And [Or [p, q], Implies p (Not q), Implies p q])(And [q, Not p])) `shouldBe` Proved
+--
   it (show (And [Implies (Not (Or [p, q])) (And [Not p, Not q]),Implies (And [Not p, Not q]) (Not (Or [p,q]))]) ++ " should be Proved") $
      prove (And [Implies (Not (Or [p, q])) (And [Not p, Not q]),Implies (And [Not p, Not q]) (Not (Or [p,q]))]) `shouldBe` Proved
 
