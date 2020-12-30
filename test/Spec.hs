@@ -1,5 +1,7 @@
 import Test.Hspec
 import Formula
+import Sequent
+import Hypersequent
 import Prover
 import Utilities
 
@@ -14,6 +16,7 @@ main :: IO()
 main = hspec $ do
    describe "Cartesian Product Tests" spec_cartesianProduct
    describe "Prove Tests" spec_prove
+   describe "Resolution Module: Positive Reflexivity" spec_positiveReflexivityResolutionModule
 
 spec_cartesianProduct :: Spec
 spec_cartesianProduct = do
@@ -31,6 +34,18 @@ spec_cartesianProduct = do
 
   it (show [[1,0]] ++ " should be " ++ show [[1], [0]]) $
     cartesianProduct [[1,0]] `shouldBe` [[1], [0]]
+
+spec_positiveReflexivityResolutionModule :: Spec
+spec_positiveReflexivityResolutionModule = do
+  it (show (World (Sequent [] [Not p , Possibly p, q, Necessarily q]) []) ++ " should be True") $
+     moduleMatches PositiveReflexivity (World (Sequent [] [Not p , Possibly p, q, Necessarily q]) []) `shouldBe` True
+
+  it (show (World (Sequent [] [Not p , Possibly p, q, Necessarily q]) []) ++ " should be " ++ show (Node (World (Sequent [] [Not p , Possibly p, q, Necessarily q]) [])
+                                                                                                    [Node (World (Sequent [p] [p, Possibly p, q, Necessarily q]) [])
+                                                                                                     [Closed]])) $
+     applyModule PositiveReflexivity (World (Sequent [] [Not p , Possibly p, q, Necessarily q]) []) `shouldBe` Node (World (Sequent [] [Not p , Possibly p, q, Necessarily q]) [])
+                                                                                                    [Node (World (Sequent [p] [p, Possibly p, q, Necessarily q]) [])
+                                                                                                     [Closed]]
 
 spec_prove :: Spec
 spec_prove = do
@@ -70,9 +85,9 @@ spec_prove = do
   it (show (Implies p p) ++ " should be Proved") $
      prove (Implies p p) `shouldBe` Proved
 
---  it (show (Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")) ++ " should be Proved") $
---     prove (Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")) `shouldBe` Proved
---
+  it (show (Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")) ++ " should be Proved") $
+     prove (Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")) `shouldBe` Proved
+
 --  it (show (Equivalent (Equivalent p q)(Equivalent q p)) ++ " should be Proved") $
 --     prove (Equivalent (Equivalent p q)(Equivalent q p)) `shouldBe` Proved
 

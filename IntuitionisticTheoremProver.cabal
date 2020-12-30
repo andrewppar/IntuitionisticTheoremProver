@@ -31,13 +31,13 @@ library
       Prover
       Formula
       Utilities
+      Hypersequent
+      Sequent
   other-modules:
       Paths_IntuitionisticTheoremProver
       Canonicalizer
-      Hypersequent
       IntuitionisticTranslator
       Model
-      Sequent
   hs-source-dirs:
       src
   build-depends: base >=4.7 && <5, containers, hspec >= 2.7.4, parallel
