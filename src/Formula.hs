@@ -11,6 +11,7 @@ module Formula
     , disjunctionP
     , conjunctionP
     , negationP
+    , negationOfP
     , possibilityP
     , necessityP
     , joinStrings
@@ -404,6 +405,11 @@ conjunctionP _ = False
 negationP :: Formula -> Bool
 negationP (Not _) = True
 negationP _ = False
+
+negationOfP :: Formula -> Formula -> Bool
+negationOfP (Not negatum) formula = negatum == formula
+negationOfP formula (Not negatum) = negatum == formula
+negationOfP _ _ = False
 
 doubleNegationP :: Formula -> Bool
 doubleNegationP (Not (Not _)) = True

@@ -1,6 +1,9 @@
 module Prover
   (ProofTreeStatus(..)
   , prove
+  , ProofTree(..)
+  , ResolutionModule(..)
+  , PositiveReflexivity(..)
   , showProof)
     where
 
@@ -44,6 +47,17 @@ gatherOpenNodes (Node hypersequent [Open]) = [hypersequent]
 gatherOpenNodes (Node hyper hypers) =
   foldr (\h acc -> (gatherOpenNodes h) ++ acc) [] hypers
 
+extendProofTreeWithClosings :: ProofTree -> [ProofTree] -> ProofTree
+extendProofTreeWithClosings Open _ = Open
+extendProofTreeWithClosings Closed _ = Closed
+extendProofTreeWithClosings tree@(Node _ [Open]) [] = tree
+extendProofTreeWithClosings tree@(Node hypersequent [Open]) (proofTree:proofTrees) =
+  let (Node root trees) = proofTree
+   in if root == hypersequent
+      then Node hypersequent trees
+      else extendProofTreeWithClosings tree proofTrees
+extendProofTreeWithClosings (Node hypersequent trees) potentialClosings =
+  Node hypersequent (map (`extendProofTreeWithClosings` potentialClosings) trees)
 
 prove :: Formula -> ProofTreeStatus
 prove = fst . proveInternal
@@ -86,6 +100,7 @@ generateProofTree depth originalFormula (status, tree)
   | depth == proofTreeRecursionLimit = (Unknown, tree)
   | otherwise = let newTree =
                      treeRemoveDuplicates .
+                     applyResolutionModules .
                      applyUniversalModalRules .
                      applyPropositionalRules .
                      applyParticularModalRules $ tree
@@ -362,6 +377,72 @@ treeRemoveDuplicates (Node hyper branches) =
       cleanBranches = map treeRemoveDuplicates branches
    in Node cleanHyper cleanBranches
 
+--------------------------
+--- Resolution Modules ---
+--------------------------
+
+-- @todo create separate module for proof trees
+-- and create a separate module for resolution modules
+-- that imports it.
+
+applyResolutionModules :: ProofTree -> ProofTree
+applyResolutionModules =
+  treeRemoveDuplicates .
+  potentiallyApplyModule RightModalLEM .
+  potentiallyApplyModule PositiveReflexivity .
+  potentiallyApplyModule OneRightNegation
+
+class (Show a) => ResolutionModule a where
+
+  formulaPattern :: a -> Sequent -> Bool
+
+  ruleToApply :: a -> Hypersequent -> Hypersequent
+
+  moduleMatches :: a -> Hypersequent -> Bool
+  moduleMatches mod (World seq hypers) =
+      formulaPattern mod seq || some (moduleMatches mod) hypers
+
+  applyModule :: a -> Hypersequent -> ProofTree
+  applyModule mod hypersequent =
+    let newHypersequent = ruleToApply mod hypersequent
+    in if hypersequentClosed newHypersequent
+       then Node hypersequent [Node newHypersequent [Closed]]
+       else error $ "Improper application of " ++ show mod ++ " Resolution Module"
+
+  potentiallyApplyModule :: a -> ProofTree -> ProofTree
+  potentiallyApplyModule _ Open = Open
+  potentiallyApplyModule _ Closed = Closed
+  potentiallyApplyModule mod tree@(Node hypersequent [Open]) =
+    if moduleMatches mod hypersequent
+    then let (Node _ trees) = applyModule mod hypersequent
+          in Node hypersequent trees
+    else tree
+  potentiallyApplyModule mod (Node hypersequent trees) =
+    Node hypersequent (map (potentiallyApplyModule mod) trees)
+
+data PositiveReflexivity = PositiveReflexivity deriving (Eq, Show)
+instance ResolutionModule PositiveReflexivity where
+
+  formulaPattern PositiveReflexivity (Sequent _ poss) =
+    some (\f -> negationP f && Possibly (negatum f) `elem` poss) poss
+
+  ruleToApply PositiveReflexivity = applyHypersequentRightPossibility . applyRightNegation
+
+data OneRightNegation = OneRightNegation deriving (Eq, Show)
+instance ResolutionModule OneRightNegation where
+  formulaPattern OneRightNegation (Sequent negs poss) =
+   any (\forms -> some (\f -> negationP f && negatum f `elem` forms) forms) [negs, poss]
+
+  ruleToApply OneRightNegation = applyRightNegation . applyLeftNegation
+
+data RightModalLEM = RightModalLEM deriving (Eq, Show)
+instance ResolutionModule RightModalLEM where
+  formulaPattern RightModalLEM (Sequent _ poss) =
+    some (\f -> necessityP f && let subformula = necessity f
+                                 in some (\otherF -> possibilityP otherF && negationOfP (possibility otherF) subformula) poss) poss
+
+  ruleToApply RightModalLEM = applyRightNegation . applyHypersequentRightPossibility . applyHypersequentRightNecessity
+
 p = (AtomicFormula "p")
 q = (AtomicFormula "q")
 np = (Not p)
@@ -374,14 +455,18 @@ pandq = (And [p, q])
 --h2 = (World s2 [(World s3 [(World s2 [])]), (World s4 [])])
 --p1 = Node h1 [(Node h2 [(Node h2 [(Node h1 [Open])]), (Node h1 [Closed])])]
 
-f = Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")
-
+--f = Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")
+f  = Equivalent (Equivalent p q)(Equivalent q p)
 
 
 (st, cf) = generateStartingProofTree f
 
-func = applyUniversalModalRules . applyPropositionalRules . applyParticularModalRules
+func = applyResolutionModules . applyUniversalModalRules . applyPropositionalRules . applyParticularModalRules
 s1 = func st
 s2 = func s1
 s3 = func s2
 s4 = func s3
+
+
+
+badHyper = (World (makeSequent []  [])[(World (makeSequent []  [(Necessarily (AtomicFormula "p")),(Necessarily (AtomicFormula "q")),(Possibly (And [(Necessarily (AtomicFormula "q")),(Possibly (Not (AtomicFormula "p")))])),(Possibly (And [(Necessarily (AtomicFormula "p")),(Possibly (Not (AtomicFormula "q")))])),(And [(Necessarily (AtomicFormula "p")),(Possibly (Not (AtomicFormula "q")))]),(And [(Necessarily (AtomicFormula "q")),(Possibly (Not (AtomicFormula "p")))])])[(World (makeSequent [(AtomicFormula "q")]  [(Necessarily (AtomicFormula "p")),(Necessarily (AtomicFormula "q")),(Possibly (Not (AtomicFormula "q"))),(And [(Necessarily (AtomicFormula "p")),(Possibly (Not (AtomicFormula "q")))]),(And [(Necessarily (AtomicFormula "q")),(Possibly (Not (AtomicFormula "p")))]),(Not (AtomicFormula "q"))])[(World (makeSequent []  [(AtomicFormula "p"),(And [(Necessarily (AtomicFormula "p")),(Possibly (Not (AtomicFormula "q")))]),(And [(Necessarily (AtomicFormula "q")),(Possibly (Not (AtomicFormula "p")))]),(Not (AtomicFormula "q"))])[])])])])
