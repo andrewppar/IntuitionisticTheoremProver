@@ -59,6 +59,7 @@ extendProofTreeWithClosings tree@(Node hypersequent [Open]) (proofTree:proofTree
 extendProofTreeWithClosings (Node hypersequent trees) potentialClosings =
   Node hypersequent (map (`extendProofTreeWithClosings` potentialClosings) trees)
 
+-- | prove: Takes a formula and determines whether that formula is an intuitionistic tautology
 prove :: Formula -> ProofTreeStatus
 prove = fst . proveInternal
 

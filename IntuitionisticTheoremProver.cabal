@@ -32,12 +32,12 @@ library
       Formula
       Utilities
       Hypersequent
-      Sequent
-  other-modules:
-      Paths_IntuitionisticTheoremProver
       Canonicalizer
       IntuitionisticTranslator
       Model
+      Sequent
+  other-modules:
+      Paths_IntuitionisticTheoremProver
   hs-source-dirs:
       src
   build-depends: base >=4.7 && <5, containers, hspec >= 2.7.4, parallel
