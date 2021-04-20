@@ -8,11 +8,27 @@ module Model
   )
     where
 import Formula
-import Sequent
-import Hypersequent
+    ( joinStrings,
+      atomicFormulaP,
+      gatherConjunctions,
+      gatherDisjunctions,
+      gatherNecessities,
+      gatherNegations,
+      gatherImplications,
+      gatherPossibilities,
+      Formula(AtomicFormula, Possibly, Or, Necessarily, And, Not, Implies,
+              possibility, necessity, conjuncts, disjuncts, negatum, antecedent, consequent) )
+import Sequent ( makeSequent, Polarity(..), Sequent(Sequent) )
+import Hypersequent ( Hypersequent(..), Serialization(HTML) )
 import Utilities
-import Debug.Trace
-import Control.Parallel.Strategies
+    ( cartesianProduct,
+      mapAppend,
+      setIntersection,
+      setMinus,
+      slowRemoveDuplicates,
+      some )
+import Debug.Trace ( trace )
+import Control.Parallel.Strategies ( parList, rdeepseq, using )
 
 ---------------
 ---- Models ---
@@ -41,7 +57,7 @@ serializeModelToHTML model =
          withWorlds     = addWorldsToTemplateLines templateLines model
          withRelations  = addRelationsToTemplateLines withWorlds model
          withKey        = addKeyToTemplateLines withRelations model
-      in do writeFile "./utilities/Model.html" (unlines withKey)
+      in writeFile "./utilities/Model.html" (unlines withKey)
 
 addWorldsToTemplateLines :: [String]  -> Model -> [String]
 addWorldsToTemplateLines [] _ = []
@@ -325,20 +341,26 @@ reduceComplexFormulasInternal model =
   foldl (flip reduceFormulasAtWorld) [model] (worlds model)
 
 reduceFormulasAtWorld :: PossibleWorld -> [Model] -> [Model]
-reduceFormulasAtWorld world models =
-  let newModels = reduceNegativePossibilityAtWorld world .
-                  reducePositiveNecessityAtWorld world .
-                  reducePositivePossibilityAtWorld world .
-                  reduceNegativeNecessityAtWorld world .
-                  reducePositiveConjunctionAtWorld world .
-                  reduceNegativeConjunctionAtWorld world .
-                  reducePositiveDisjunctionAtWorld world .
-                  reduceNegativeDisjunctionAtWorld world .
-                  reducePositiveNegationAtWorld world .
-                  reduceNegativeNegationAtWorld world $ models
+reduceFormulasAtWorld world@(PossibleWorld trues falses tag) models =
+  let newModels = reduceFormulasAtWorldOneStep world models
    in if all (atomicModelAtWorldP world) newModels
          then newModels
          else reduceFormulasAtWorld world newModels
+
+reduceFormulasAtWorldOneStep :: PossibleWorld -> [Model] -> [Model]
+reduceFormulasAtWorldOneStep world =
+  reduceNegativePossibilityAtWorld world .
+  reducePositiveNecessityAtWorld world .
+  reducePositivePossibilityAtWorld world .
+  reduceNegativeNecessityAtWorld world .
+  reducePositiveConjunctionAtWorld world .
+  reduceNegativeConjunctionAtWorld world .
+  reducePositiveDisjunctionAtWorld world .
+  reduceNegativeDisjunctionAtWorld world .
+  reducePositiveNegationAtWorld world .
+  reduceNegativeImplicationAtWorld world .
+  reducePositiveImplicationAtWorld world .
+  reduceNegativeNegationAtWorld world
 
 reduceNegativePossibilityAtWorld :: PossibleWorld -> [Model] -> [Model]
 reduceNegativePossibilityAtWorld world =
@@ -461,6 +483,48 @@ reduceUniversalJunctionAtWorld polarity world model =
                        Negative -> makeWorld (trueFormulas modelWorld) (newFormulas ++ irrelevantFormulas) currentTag
    in replaceWorldInModel model modelWorld updatedWorld
 
+reducePositiveImplicationAtWorld :: PossibleWorld -> [Model] -> [Model]
+reducePositiveImplicationAtWorld world =
+  mapAppend (reducePositiveImplicationAtWorldSingleModel world)
+
+reducePositiveImplicationAtWorldSingleModel :: PossibleWorld -> Model -> [Model]
+reducePositiveImplicationAtWorldSingleModel world model =
+  let currentTag = tag world
+      modelWorld = getWorldByTag model currentTag
+      (relevantFormulas, irrelevantFormulas) = gatherImplications . trueFormulas $ modelWorld
+      oldFalses = falseFormulas modelWorld
+      markedFormulas =
+        cartesianProduct .
+        map (\formula ->
+               [(antecedent formula, Positive)
+               , (consequent formula, Negative)]) $ relevantFormulas
+  in if null markedFormulas
+     then [model]
+     else map (\worldSpec ->
+                 let (newTrues, newFalses) =
+                       foldl (\(accTrues, accFalses) (form, polarity) ->
+                                case polarity of
+                                  Positive -> (form:accTrues, accFalses)
+                                  Negative -> (accTrues, form:accFalses)) ([], []) worldSpec
+                     updatedWorld = makeWorld (irrelevantFormulas ++ newTrues) (oldFalses ++ newFalses) currentTag
+                 in replaceWorldInModel model world updatedWorld) markedFormulas
+
+reduceNegativeImplicationAtWorld :: PossibleWorld -> [Model] -> [Model]
+reduceNegativeImplicationAtWorld world =
+  map (reduceNegativeImplicationAtWorldSingleModel world)
+
+reduceNegativeImplicationAtWorldSingleModel :: PossibleWorld -> Model -> Model
+reduceNegativeImplicationAtWorldSingleModel world model =
+  let currentTag = tag world
+      modelWorld = getWorldByTag model currentTag
+      (relevantFormulas, irrelevantFormulas) = gatherImplications . falseFormulas $ modelWorld
+      antecedents = map antecedent relevantFormulas
+      consequents = map consequent relevantFormulas
+      oldTrues = trueFormulas modelWorld
+      updatedWorld =
+        makeWorld (oldTrues ++ antecedents) (irrelevantFormulas ++ consequents) currentTag
+  in replaceWorldInModel model modelWorld updatedWorld
+
 reducePositiveNegationAtWorld :: PossibleWorld -> [Model] -> [Model]
 reducePositiveNegationAtWorld world =
   map (reduceNegationAtWorldInternal Positive world)
@@ -509,13 +573,15 @@ s0 = makeSequent [p,q]  []
 s1 = makeSequent [p] []
 s2 = makeSequent []  [p,q]
 
-h1 = (World (makeSequent []  [])[(World (makeSequent []  [(AtomicFormula "p")])[]),(World (makeSequent []  [(Possibly (Not (AtomicFormula "p"))),(Not (AtomicFormula "p"))])[])])
+--h1 = (World (makeSequent []  [])[(World (makeSequent []  [(AtomicFormula "p")])[]),(World (makeSequent []  [(Possibly (Not (AtomicFormula "p"))),(Not (AtomicFormula "p"))])[])])
 --m1 = buildModelsFromHypersequent h1 0
+
+h1 = (World (makeSequent []  [])[(World (makeSequent [(Not (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))),(Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p"))),(Necessarily (Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p"))))]  [(Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))])[(World (makeSequent [(AtomicFormula "p"),(Necessarily (AtomicFormula "p")),(Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p"))),(Necessarily (Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p"))))]  [(Necessarily (AtomicFormula "q"))])[]),(World (makeSequent [(Not (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))),(Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p"))),(Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p"))),(Necessarily (Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p")))),(Necessarily (Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p")))),(Necessarily (Implies (Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))(Necessarily (AtomicFormula "p"))))]  [(AtomicFormula "p"),(Necessarily (Implies (Necessarily (AtomicFormula "p"))(Necessarily (AtomicFormula "q"))))])[])])])
 
 f = Necessarily (Possibly (Or [Necessarily p, And [p, Not p]]))
 h = World (makeSequent []  [])[World (makeSequent []  [Possibly (Or [Necessarily (AtomicFormula "p"),And [AtomicFormula "p",Not (AtomicFormula "p")]]),Or [Necessarily (AtomicFormula "p"),And [AtomicFormula "p",Not (AtomicFormula "p")]]])[]]
 
-(ws, rs,t) = makeWorldsAndRelations h 0
+(ws, rs,t) = makeWorldsAndRelations h1 0
 world = head . tail $ ws
 m  = Model ws rs
 m1 = reduceNegativePossibilityAtWorld world m2

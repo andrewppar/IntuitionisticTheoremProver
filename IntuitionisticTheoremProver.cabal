@@ -33,10 +33,10 @@ library
       Utilities
       Hypersequent
       Sequent
+      IntuitionisticTranslator
   other-modules:
       Paths_IntuitionisticTheoremProver
       Canonicalizer
-      IntuitionisticTranslator
       Model
   hs-source-dirs:
       src

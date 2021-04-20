@@ -8,14 +8,34 @@ module Prover
     where
 
 
-import Utilities
+import Utilities ( cartesianProduct, emptyListP, mapAppend, some)
 import Formula
-import Canonicalizer
+    (implicationP, negationOfP,  gatherConjunctions
+    , gatherDisjunctions
+    , gatherNecessities
+    , gatherNegations
+    , gatherImplications
+    , gatherPossibilities
+    , necessityP
+    , negationP
+    , possibilityP
+    , Formula (..)
+    )
+
+import Canonicalizer ( canonicalizeFormula )
 import Sequent
+    ( addFormulasToSequent, makeSequent, Polarity(..), Sequent(..) )
 import Hypersequent
-import Model
-import IntuitionisticTranslator
-import Data.Maybe
+    ( hypersequentClosed
+    , hypersequentRemoveDuplicates
+    , showHypersequent
+    , serializeHypersequent
+    , Serialization(..)
+    , Hypersequent(..))
+
+import Model ( getCounterExample, hypersequentSatisfies, Model )
+import IntuitionisticTranslator ( intuitionisticTranslate )
+import Data.Maybe ( fromJust )
 data ProofTree = Closed | Open | Node Hypersequent [ProofTree] deriving (Eq)
 
 data ProofTreeStatus = Proved | CounterExample  | Unknown deriving (Eq, Show)
@@ -83,11 +103,10 @@ proveInternal form =
 
 generateStartingProofTree  :: Formula -> (ProofTree, Formula)
 generateStartingProofTree formula =
-  let canonicalFormula =
-        canonicalizeFormula . fromJust . intuitionisticTranslate $ formula
+  let canonicalFormula = fromJust . intuitionisticTranslate $ formula
       sequent = makeSequent [] [canonicalFormula]
       hypersequent = World sequent []
-   in ((Node hypersequent [Open]), canonicalFormula)
+   in (Node hypersequent [Open], canonicalFormula)
 
 proofTreeRecursionLimit :: Int
 proofTreeRecursionLimit = 15
@@ -114,7 +133,7 @@ generateProofTree depth originalFormula (status, tree)
 checkTreeClosed :: ProofTree -> Bool
 checkTreeClosed Closed = True
 checkTreeClosed Open = False
-checkTreeClosed (Node hypersequent trees) =
+checkTreeClosed (Node _ trees) =
   let openTrees = filter (\bool -> bool /= True) . map checkTreeClosed $ trees
    in openTrees == []
 
@@ -131,9 +150,11 @@ applyPropositionalRules (Node hypersequent [Open]) =
   let rootHypersequent = applyLeftNegation  .
                            applyRightNegation .
                            applyLeftConjunction .
+                           applyRightImplication .
                            applyRightDisjunction $ hypersequent
-      hypersequents = mapAppend applyHypersequentRightConjunction .
-                     applyHypersequentLeftDisjunction $ rootHypersequent
+      hypersequents = mapAppend applyHypersequentLeftImplication .
+                      mapAppend applyHypersequentRightConjunction .
+                      applyHypersequentLeftDisjunction $ rootHypersequent
       newBranches = map (\hyper -> if hypersequentClosed hyper
                                       then Node hyper [Closed]
                                    else Node hyper [Open]) hypersequents
@@ -216,6 +237,19 @@ applySimpleSequentJunction polarity (Sequent negs poss) =
      Positive -> (Sequent negs (irrelevant ++ subformulas))
      Negative -> (Sequent (irrelevant ++ subformulas) poss)
 
+applyRightImplication :: Hypersequent -> Hypersequent
+applyRightImplication (World seq hypers) =
+  let newSeq = applySequentRightImplication seq
+      recursiveCase = map applyRightImplication hypers
+  in World newSeq recursiveCase
+
+applySequentRightImplication :: Sequent -> Sequent
+applySequentRightImplication (Sequent negs poss) =
+  let (relevant, irrelevant) = gatherImplications poss
+      newAnts = map antecedent relevant
+      newCons = map consequent relevant
+   in Sequent (negs ++ newAnts) (irrelevant ++ newCons)
+
 applyHypersequentRightConjunction :: Hypersequent -> [Hypersequent]
 applyHypersequentRightConjunction = applyHypersequentComplexJunction applySequentRightConjunction
 
@@ -266,6 +300,30 @@ applySequentComplexJunction polarity (Sequent negs poss) =
                   case polarity of
                     Positive -> Sequent negs (forms ++ irrelevant)
                     Negative -> Sequent (forms ++ irrelevant) poss) newRelevants
+
+applyHypersequentLeftImplication :: Hypersequent -> [Hypersequent]
+applyHypersequentLeftImplication hypersequent =
+  -- Quick and Dirty But OK for now
+  let newHypersequent = transformNegativeImplications hypersequent
+  in applyHypersequentLeftDisjunction newHypersequent
+
+transformNegativeImplications :: Hypersequent -> Hypersequent
+transformNegativeImplications (World seq hypers) =
+  let (relevant, irrelevant) = gatherImplications . negFormulas $ seq
+      newRelevant = map (\formula -> Or [Not (antecedent formula)
+                                         , consequent formula]) relevant
+      newSequent = Sequent (newRelevant ++ irrelevant) (posFormulas seq)
+      recursiveCase = map transformNegativeImplications hypers
+  in World newSequent recursiveCase
+
+
+
+
+
+
+
+
+
 
 applyParticularModalRules :: ProofTree -> ProofTree
 applyParticularModalRules = applyRightNecessity .  applyLeftPossibility
@@ -351,17 +409,17 @@ applyHypersequentUniversalModality polarity (World seq hypers) =
         case polarity of
           Positive -> gatherPossibilities . posFormulas
           Negative -> gatherNecessities . negFormulas
-      (relevant, irrelevant)  = gatherFunc seq
+      (relevant, _)  = gatherFunc seq
       newFormulas =
         case polarity of
-          Positive -> map possibility relevant
-          Negative -> map necessity relevant
+          Positive -> map possibility relevant ++ relevant
+          Negative -> map necessity relevant ++ relevant
       updatedHypersequents =
         map (addFormulasToAllWorlds polarity newFormulas) hypers
       newHypersequents =
          map (applyHypersequentUniversalModality polarity) updatedHypersequents
       newSequent = addFormulasToSequent polarity newFormulas seq
-   in (World newSequent newHypersequents)
+   in World newSequent newHypersequents
 
 addFormulasToAllWorlds :: Polarity -> [Formula]  -> Hypersequent -> Hypersequent
 addFormulasToAllWorlds polarity forms (World seq hypers) =
@@ -391,6 +449,8 @@ applyResolutionModules =
   potentiallyApplyModule RightModalLEM .
   potentiallyApplyModule PositiveReflexivity .
   potentiallyApplyModule OneRightNegation
+--  potentiallyApplyModule ModalSelfNegation
+
 
 class (Show a) => ResolutionModule a where
 
@@ -443,6 +503,20 @@ instance ResolutionModule RightModalLEM where
 
   ruleToApply RightModalLEM = applyRightNegation . applyHypersequentRightPossibility . applyHypersequentRightNecessity
 
+data ModalSelfNegation = ModalSelfNegation deriving (Eq, Show)
+instance ResolutionModule ModalSelfNegation where
+  formulaPattern ModalSelfNegation (Sequent negs poss) =
+    some (\f -> implicationP f &&
+           let ant = antecedent f
+               cons = consequent f
+           in  Necessarily (Not ant) == cons &&
+           some (== cons) poss) negs
+
+  ruleToApply ModalSelfNegation = applyHypersequentRightNecessity . applyRightNegation . applyHypersequentLeftNecessity . --something --
+    applyLeftNegation
+
+
+
 p = (AtomicFormula "p")
 q = (AtomicFormula "q")
 np = (Not p)
@@ -456,13 +530,16 @@ pandq = (And [p, q])
 --p1 = Node h1 [(Node h2 [(Node h2 [(Node h1 [Open])]), (Node h1 [Closed])])]
 
 --f = Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")
-f  = Equivalent (Equivalent p q)(Equivalent q p)
+f  = (Implies (Implies (Implies p q) p) p)
+
+--  (Not (Equivalent (Not (AtomicFormula "p")) (Not (Not (AtomicFormula "p")))))
+
 
 
 (st, cf) = generateStartingProofTree f
 
 func = applyResolutionModules . applyUniversalModalRules . applyPropositionalRules . applyParticularModalRules
-s1 = func st
+  s1 = func st
 s2 = func s1
 s3 = func s2
 s4 = func s3

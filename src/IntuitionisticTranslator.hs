@@ -1,14 +1,19 @@
 module IntuitionisticTranslator
-    (intuitionisticTranslate) where
-
+    (
+      intuitionisticTranslate
+    , removeNegations
+    ) where
 import Formula
-import Data.Maybe
+    ( doubleNegationP,
+      Formula(And, Equivalent, AtomicFormula, Implies, Not, Possibly,
+              Necessarily, Or) )
+import Data.Maybe (isNothing,  fromJust )
 
 intuitionisticTranslate :: Formula -> Maybe  Formula
 intuitionisticTranslate formula =
     if doubleNegationP formula
-       then Just  formula
-       else intuitionisticTranslateInternal formula
+       then Just formula
+       else intuitionisticTranslateInternal . removeNegations $ formula
 
 glivenko :: Formula -> Formula
 glivenko (Not (Not formula)) = formula
@@ -19,14 +24,16 @@ intuitionisticTranslateInternal f@(AtomicFormula _) = Just (Necessarily f)
 intuitionisticTranslateInternal (And fs) = translateJunction "And" fs
 intuitionisticTranslateInternal (Or fs) = translateJunction "Or" fs
 intuitionisticTranslateInternal (Implies ant cons) =
-    Just (Necessarily (Implies (Data.Maybe.fromJust (intuitionisticTranslateInternal ant)) (Data.Maybe.fromJust (intuitionisticTranslateInternal cons))))
+    Just (Necessarily (Implies
+                       (Data.Maybe.fromJust (intuitionisticTranslateInternal ant))
+                       (Data.Maybe.fromJust (intuitionisticTranslateInternal cons))))
 intuitionisticTranslateInternal (Equivalent one two) =
     let maybeOne = Data.Maybe.fromJust . intuitionisticTranslateInternal $ one
         maybeTwo = Data.Maybe.fromJust . intuitionisticTranslateInternal $ two
     in if maybeOne == maybeTwo
        then Just (Necessarily (Implies (AtomicFormula "p") (AtomicFormula "p")))
-       else Just (And  [ (Necessarily (Implies maybeOne maybeTwo))
-                       , (Necessarily (Implies maybeTwo maybeOne)) ])
+       else Just (And  [ Necessarily (Implies maybeOne maybeTwo)
+                       , Necessarily (Implies maybeTwo maybeOne) ])
 intuitionisticTranslateInternal (Not f) =
     Just (Necessarily (Not (Data.Maybe.fromJust (intuitionisticTranslateInternal f))))
 intuitionisticTranslateInternal (Possibly _) = Nothing
@@ -35,9 +42,20 @@ intuitionisticTranslateInternal (Necessarily _) = Nothing
 translateJunction :: String -> [Formula] -> Maybe Formula
 translateJunction junctionType fs =
     let possiblyTranslated = map intuitionisticTranslateInternal fs
-   in if (filter (\x -> x == Nothing) possiblyTranslated) == []
+   in if not . any isNothing $ possiblyTranslated
          then case junctionType of  --TODO Replace these strings with some other type
                 "Or" -> Just (Or (map Data.Maybe.fromJust possiblyTranslated))
                 "And" -> Just (And (map Data.Maybe.fromJust possiblyTranslated))
-                otherwise  -> Nothing
+                _  -> Nothing
       else Nothing
+
+removeNegations :: Formula -> Formula
+removeNegations f@(AtomicFormula _) = f
+removeNegations (And forms) = And . map removeNegations $ forms
+removeNegations (Or forms) = Or . map removeNegations $ forms
+removeNegations (Implies ant cons) = Implies (removeNegations ant) . removeNegations $ cons
+removeNegations (Equivalent one two) = Equivalent (removeNegations one) . removeNegations $ two
+removeNegations (Not (Not (Not formula))) = removeNegations . Not $ formula
+removeNegations (Necessarily formula) = Necessarily . removeNegations $ formula
+removeNegations (Possibly formula) = Possibly . removeNegations $ formula
+removeNegations (Not form) = Not . removeNegations $ form

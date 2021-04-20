@@ -1,9 +1,17 @@
-import Test.Hspec
+import Test.Hspec ( hspec, describe, it, shouldBe, Spec )
 import Formula
-import Sequent
-import Hypersequent
+    ( Formula(AtomicFormula, Possibly, Necessarily, And, Implies, Or,
+              Equivalent, Not) )
+import Sequent ( Sequent(Sequent) )
+import Hypersequent ( Hypersequent(World) )
+import IntuitionisticTranslator ( removeNegations )
 import Prover
-import Utilities
+    ( prove,
+      PositiveReflexivity(PositiveReflexivity),
+      ProofTree(Closed, Node),
+      ProofTreeStatus(Proved, CounterExample),
+      ResolutionModule(applyModule, moduleMatches) )
+import Utilities ( cartesianProduct )
 
 p :: Formula
 p = AtomicFormula "p"
@@ -17,6 +25,7 @@ main = hspec $ do
    describe "Cartesian Product Tests" spec_cartesianProduct
    describe "Prove Tests" spec_prove
    describe "Resolution Module: Positive Reflexivity" spec_positiveReflexivityResolutionModule
+   describe "Remove Double Negations In Translate" spec_removeNegations
 
 spec_cartesianProduct :: Spec
 spec_cartesianProduct = do
@@ -162,3 +171,14 @@ spec_prove = do
 
   it (show (Not (Not (Equivalent (Equivalent (Equivalent (AtomicFormula "a") (AtomicFormula "a")) (AtomicFormula "a")) (AtomicFormula "a")))) ++ " should be Proved") $
      prove (Not (Not (Equivalent (Equivalent (Equivalent (AtomicFormula "a") (AtomicFormula "a")) (AtomicFormula "a")) (AtomicFormula "a")))) `shouldBe` Proved
+
+  it (show (Not (Equivalent (Not (AtomicFormula "p")) (Not (Not (AtomicFormula "p"))))) ++ " should be Proved") $
+     prove  (Not (Equivalent (Not (AtomicFormula "p")) (Not (Not (AtomicFormula "p"))))) `shouldBe` Proved
+
+-- (Not (And [(Not (Not (Not (Not (AtomicFormula "a"))))), (Equivalent (AtomicFormula "a") (Not (AtomicFormula "a")))]))
+
+spec_removeNegations :: Spec
+spec_removeNegations = do
+  it (show (Not (Equivalent (Not (Not (Not (Not (Not (Not (Not (AtomicFormula "p")))))))) (Not (Not (AtomicFormula "p"))))) ++ " should be " ++ show (Not (Equivalent (Not (AtomicFormula "p")) (Not (Not (AtomicFormula "p")))))) $ removeNegations (Not (Equivalent (Not (Not (Not (Not (Not (Not (Not (AtomicFormula "p")))))))) (Not (Not (AtomicFormula "p"))))) `shouldBe` (Not (Equivalent (Not (AtomicFormula "p")) (Not (Not (AtomicFormula "p")))))
+
+  it (show (Not (Not (Not (Not (Not (Not (Not (AtomicFormula "p")))))))) ++ " should be " ++ show (Not (AtomicFormula "p"))) $ removeNegations (Not (Not (Not (Not (Not (Not (Not (AtomicFormula "p")))))))) `shouldBe` (Not (AtomicFormula "p"))
