@@ -390,7 +390,8 @@ applyResolutionModules =
   treeRemoveDuplicates .
   potentiallyApplyModule RightModalLEM .
   potentiallyApplyModule PositiveReflexivity .
-  potentiallyApplyModule OneRightNegation
+  potentiallyApplyModule OneRightNegation .
+  potentiallyApplyModule PossiblyNotPossiblyNecessary
 
 class (Show a) => ResolutionModule a where
 
@@ -398,16 +399,25 @@ class (Show a) => ResolutionModule a where
 
   ruleToApply :: a -> Hypersequent -> Hypersequent
 
+  formulaFilter :: a -> [Formula] -> [Formula]
+
   moduleMatches :: a -> Hypersequent -> Bool
   moduleMatches mod (World seq hypers) =
       formulaPattern mod seq || some (moduleMatches mod) hypers
 
   applyModule :: a -> Hypersequent -> ProofTree
   applyModule mod hypersequent =
-    let newHypersequent = ruleToApply mod hypersequent
+    let cleanHypersequent = removeNonNecessaryForms mod hypersequent
+        newHypersequent = ruleToApply mod cleanHypersequent
     in if hypersequentClosed newHypersequent
        then Node hypersequent [Node newHypersequent [Closed]]
-       else error $ "Improper application of " ++ show mod ++ " Resolution Module"
+       else error $ "Improper application of " ++ show mod ++ " Resolution Module\n" ++ show hypersequent ++ "\n\n" ++ show cleanHypersequent ++ "\n\n" ++ show newHypersequent
+
+  removeNonNecessaryForms :: a -> Hypersequent -> Hypersequent
+  removeNonNecessaryForms mod (World (Sequent _ poss) hypers) =
+      let newSeq = makeSequent [] (formulaFilter mod poss)
+       in World newSeq (map (removeNonNecessaryForms mod) hypers)
+
 
   potentiallyApplyModule :: a -> ProofTree -> ProofTree
   potentiallyApplyModule _ Open = Open
@@ -426,12 +436,34 @@ instance ResolutionModule PositiveReflexivity where
   formulaPattern PositiveReflexivity (Sequent _ poss) =
     some (\f -> negationP f && Possibly (negatum f) `elem` poss) poss
 
+  formulaFilter PositiveReflexivity [] = []
+  formulaFilter PositiveReflexivity (Not f:xs) =
+    if Possibly f `elem` xs
+    then [Not f, Possibly f]
+    else formulaFilter PositiveReflexivity xs
+  formulaFilter PositiveReflexivity ((Possibly f):xs) =
+    if Not f `elem` xs
+    then [Not f, Possibly f]
+    else formulaFilter PositiveReflexivity xs
+  formulaFilter PositiveReflexivity (_:xs) =
+    formulaFilter PositiveReflexivity xs
+
   ruleToApply PositiveReflexivity = applyHypersequentRightPossibility . applyRightNegation
 
 data OneRightNegation = OneRightNegation deriving (Eq, Show)
 instance ResolutionModule OneRightNegation where
   formulaPattern OneRightNegation (Sequent negs poss) =
    any (\forms -> some (\f -> negationP f && negatum f `elem` forms) forms) [negs, poss]
+
+  formulaFilter OneRightNegation [] = []
+  formulaFilter OneRightNegation (Not x:xs) =
+    if x `elem` xs
+    then [Not x, x]
+    else formulaFilter OneRightNegation xs
+  formulaFilter OneRightNegation (x:xs) =
+    if Not x `elem` xs
+    then [Not x, x]
+    else formulaFilter OneRightNegation xs
 
   ruleToApply OneRightNegation = applyRightNegation . applyLeftNegation
 
@@ -441,7 +473,52 @@ instance ResolutionModule RightModalLEM where
     some (\f -> necessityP f && let subformula = necessity f
                                  in some (\otherF -> possibilityP otherF && negationOfP (possibility otherF) subformula) poss) poss
 
-  ruleToApply RightModalLEM = applyRightNegation . applyHypersequentRightPossibility . applyHypersequentRightNecessity
+  formulaFilter RightModalLEM [] = []
+  formulaFilter RightModalLEM (Necessarily x:xs) =
+    if some (\form -> possibilityP form && negationOfP (possibility form) x) xs
+    then [Necessarily x, Possibly (Not x)]
+    else formulaFilter RightModalLEM xs
+  formulaFilter RightModalLEM (Possibly x:xs) =
+    if some (\form -> necessityP form && negationOfP (necessity form) x) xs
+    then [Possibly x, Necessarily (Not x)]
+    else formulaFilter RightModalLEM xs
+  formulaFilter RightModalLEM (_:xs) =
+    formulaFilter RightModalLEM xs
+
+  ruleToApply RightModalLEM =
+    applyLeftNegation .
+    applyRightNegation .
+    applyHypersequentRightPossibility .
+    applyHypersequentRightNecessity
+
+
+data PossiblyNotPossiblyNecessary = PossiblyNotPossiblyNecessary deriving (Eq, Show)
+instance ResolutionModule PossiblyNotPossiblyNecessary where
+  formulaPattern PossiblyNotPossiblyNecessary (Sequent _ poss) =
+    some (\f -> possibilityP f &&
+                negationP (possibility f) &&
+                let subFormula  = negatum . possibility $ f
+                 in some (\otherF -> possibilityP otherF &&
+                           possibility otherF == Necessarily subFormula) poss) poss
+
+  formulaFilter PossiblyNotPossiblyNecessary [] = []
+  formulaFilter PossiblyNotPossiblyNecessary (Possibly (Not x):xs) =
+    if Possibly (Necessarily x) `elem` xs
+    then [Possibly (Not x), Possibly (Necessarily x)]
+    else formulaFilter PossiblyNotPossiblyNecessary xs
+  formulaFilter PossiblyNotPossiblyNecessary (Possibly (Necessarily x):xs) =
+    if Possibly (Not x) `elem` xs
+    then [Possibly (Necessarily x), Possibly (Not x)]
+    else formulaFilter PossiblyNotPossiblyNecessary xs
+  formulaFilter PossiblyNotPossiblyNecessary (_:xs) =
+    formulaFilter PossiblyNotPossiblyNecessary xs
+
+  ruleToApply PossiblyNotPossiblyNecessary  =
+    applyRightNegation .
+    applyHypersequentRightPossibility  .
+    applyHypersequentRightNecessity .
+    applyHypersequentRightPossibility 
+
 
 p = (AtomicFormula "p")
 q = (AtomicFormula "q")
@@ -456,8 +533,7 @@ pandq = (And [p, q])
 --p1 = Node h1 [(Node h2 [(Node h2 [(Node h1 [Open])]), (Node h1 [Closed])])]
 
 --f = Implies (And [p, Implies p q,Implies q (AtomicFormula "r")]) (AtomicFormula "r")
-f  = Equivalent (Equivalent p q)(Equivalent q p)
-
+f  = (Not (Equivalent (Not (AtomicFormula "p")) (Not (Not (AtomicFormula "p")))))
 
 (st, cf) = generateStartingProofTree f
 

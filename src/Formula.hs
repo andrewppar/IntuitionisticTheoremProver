@@ -407,7 +407,7 @@ negationP (Not _) = True
 negationP _ = False
 
 negationOfP :: Formula -> Formula -> Bool
-negationOfP (Not negatum) formula = negatum == formula
+negationOfP p@(Not negatum) formula = negatum == formula || Not p == formula
 negationOfP formula (Not negatum) = negatum == formula
 negationOfP _ _ = False
 

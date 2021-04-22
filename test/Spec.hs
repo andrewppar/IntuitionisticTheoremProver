@@ -15,8 +15,9 @@ q = AtomicFormula "q"
 main :: IO()
 main = hspec $ do
    describe "Cartesian Product Tests" spec_cartesianProduct
-   describe "Prove Tests" spec_prove
+   describe "NegationOfP" spec_negationOfP
    describe "Resolution Module: Positive Reflexivity" spec_positiveReflexivityResolutionModule
+   describe "Prove Tests" spec_prove
 
 spec_cartesianProduct :: Spec
 spec_cartesianProduct = do
@@ -44,7 +45,7 @@ spec_positiveReflexivityResolutionModule = do
                                                                                                     [Node (World (Sequent [p] [p, Possibly p, q, Necessarily q]) [])
                                                                                                      [Closed]])) $
      applyModule PositiveReflexivity (World (Sequent [] [Not p , Possibly p, q, Necessarily q]) []) `shouldBe` Node (World (Sequent [] [Not p , Possibly p, q, Necessarily q]) [])
-                                                                                                    [Node (World (Sequent [p] [p, Possibly p, q, Necessarily q]) [])
+                                                                                                    [Node (World (Sequent [p] [p, Possibly p]) [])
                                                                                                      [Closed]]
 
 spec_prove :: Spec
@@ -162,3 +163,15 @@ spec_prove = do
 
   it (show (Not (Not (Equivalent (Equivalent (Equivalent (AtomicFormula "a") (AtomicFormula "a")) (AtomicFormula "a")) (AtomicFormula "a")))) ++ " should be Proved") $
      prove (Not (Not (Equivalent (Equivalent (Equivalent (AtomicFormula "a") (AtomicFormula "a")) (AtomicFormula "a")) (AtomicFormula "a")))) `shouldBe` Proved
+
+
+  it (show (Not (Equivalent (Not (AtomicFormula "p")) (Not (Not (AtomicFormula "p"))))) ++ " should be Proved") $
+     prove  (Not (Equivalent (Not (AtomicFormula "p")) (Not (Not (AtomicFormula "p"))))) `shouldBe` Proved
+
+  it (show (Not (And [(Not (Not (Not (Not (AtomicFormula "a"))))), (Equivalent (AtomicFormula "a") (Not (AtomicFormula "a")))])) ++ " should be Proved") $
+    prove (Not (And [(Not (Not (Not (Not (AtomicFormula "a"))))), (Equivalent (AtomicFormula "a") (Not (AtomicFormula "a")))])) `shouldBe` Proved
+
+spec_negationOfP :: Spec
+spec_negationOfP = do
+  it ((show (Not p)) ++ " a negation of " ++ (show (Not (Not p)))) $
+    negationOfP (Not p) (Not (Not p)) `shouldBe` True
